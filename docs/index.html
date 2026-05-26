@@ -1,0 +1,310 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>MizMap — live moving map for DCS World</title>
+  <meta name="description" content="A live moving-map viewer for single-player DCS World missions. You choose what's visible." />
+
+  <meta property="og:title" content="MizMap — live moving map for DCS World" />
+  <meta property="og:description" content="A live moving-map viewer for single-player DCS World missions. You choose what's visible." />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://mizmap.github.io/mizmap/" />
+  <meta name="twitter:card" content="summary_large_image" />
+
+  <link rel="icon" href="favicon.ico" sizes="any" />
+  <link rel="icon" type="image/png" href="assets/mizmap-icon.png" />
+  <link rel="apple-touch-icon" href="assets/mizmap-icon.png" />
+  <link rel="preconnect" href="https://api.github.com" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="site">
+    <div class="container row">
+      <a class="brand" href="#top">
+        <img class="brand-glyph" src="assets/mizmap-icon.png" alt="" width="28" height="28" />
+        <span class="brand-text">MizMap</span>
+      </a>
+      <nav class="nav">
+        <a href="#features">Features</a>
+        <a href="#quickstart">Install</a>
+        <a href="#architecture">Architecture</a>
+        <a href="https://github.com/mizmap/mizmap" target="_blank" rel="noopener">GitHub ↗</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="top">
+    <!-- HERO ──────────────────────────────────────────────────────── -->
+    <section class="hero">
+      <div class="container">
+        <div class="status-chip">
+          <span class="dot"></span> Pre-release
+        </div>
+        <h1>MizMap</h1>
+        <p class="lede">
+          A live moving-map viewer for single-player DCS World missions.
+          <strong>You choose what's visible</strong> — MizMap doesn't enforce the
+          mission's in-game F10 view options.
+        </p>
+        <div class="cta-row">
+          <a id="download-btn" class="btn btn-primary" href="https://github.com/mizmap/mizmap/releases/latest">
+            <span class="btn-label">Download for Windows</span>
+            <span id="download-version" class="btn-sub">latest release</span>
+          </a>
+          <a class="btn btn-ghost" href="https://github.com/mizmap/mizmap" target="_blank" rel="noopener">
+            View on GitHub
+          </a>
+        </div>
+        <p class="hero-note">
+          Requires <a href="https://github.com/DCS-gRPC/rust-server" target="_blank" rel="noopener">DCS-gRPC rust-server</a>
+          installed in DCS. Open the viewer on the DCS PC, a second monitor, or any tablet on the same Wi-Fi.
+        </p>
+      </div>
+
+      <div class="container hero-shot">
+        <figure class="shot shot-hero">
+          <img src="assets/hero.png" alt="MizMap viewer showing a topographic map with NATO and Warsaw Pact unit symbols, threat rings, and a flight plan overlay." />
+          <figcaption>Live mission view — topographic map, MIL-STD-2525C symbology, SAM threat rings, mission flight plan.</figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <!-- WHY ──────────────────────────────────────────────────────── -->
+    <section class="why">
+      <div class="container">
+        <h2 class="eyebrow">// Why</h2>
+        <p class="why-body">
+          MizMap is built for free flight, self-training, and mission designers testing their own work.
+          In a campaign that deliberately limits the map, you're working around the designer's
+          intent — your call. And it's not a multiplayer tool: ethically off-limits, and technically
+          blocked by the security flags any sane server has set.
+        </p>
+        <p class="why-body">
+          DCS's in-game F10 map enforces whatever visibility options the mission designer baked in.
+          MizMap doesn't. It reads the mission state directly from DCS-gRPC and renders it on a
+          real-world topographic map, and you toggle the layers: coalition filter, category filter,
+          threat rings, flight plans, F10 marks, trails — all client-side, all your call.
+        </p>
+      </div>
+    </section>
+
+    <!-- FEATURES ────────────────────────────────────────────────── -->
+    <section id="features" class="features">
+      <div class="container">
+        <h2 class="eyebrow">// Features</h2>
+
+        <div class="feature">
+          <div class="feature-text">
+            <h3>Pick what's visible</h3>
+            <p>
+              The filter panel is the whole point. iOS-style toggles for both
+              coalitions (Blue, Red, Neutral) and unit categories (Plane,
+              Helo, Ground, Ship, Train), plus per-layer toggles for routes,
+              bullseyes, F10 marks, the ruler, threat rings, velocity vectors,
+              and motion trails. Setting stays put across reloads.
+            </p>
+          </div>
+          <figure class="shot">
+            <img src="assets/filters.png" alt="MizMap viewer with the filter panel open on the left, showing toggles for coalitions, unit categories, and map layers." />
+          </figure>
+        </div>
+
+        <div class="feature alt">
+          <div class="feature-text">
+            <h3>MIL-STD-2525C symbology</h3>
+            <p>
+              Proper military symbology via <code>milsymbol.js</code>, with per-DCS-type refinement
+              (a Hornet shows as a strike fighter, an SA-10 as the right SAM family). Hover any unit
+              for its callsign and DCS type; click to pin the tooltip in place. Coarse coalition
+              ×&nbsp;category fallback for anything not yet in the type DB.
+            </p>
+          </div>
+          <figure class="shot">
+            <img src="assets/symbols.png" alt="Close-up of military unit symbols with coalition colors and SIDC labels." />
+          </figure>
+        </div>
+
+        <div class="feature">
+          <div class="feature-text">
+            <h3>Telemetry HUD</h3>
+            <p>
+              Own-ship strip: lat/lon, MGRS, altitude, ground and vertical speed, magnetic heading.
+              Auto-detects the player slot from DCS-gRPC; click any other unit to redirect the HUD.
+            </p>
+          </div>
+          <figure class="shot">
+            <img src="assets/hud.png" alt="Telemetry HUD showing heading, speed, altitude, and vertical speed." />
+          </figure>
+        </div>
+
+        <div class="feature alt">
+          <div class="feature-text">
+            <h3>Click-to-measure BRA</h3>
+            <p>
+              Middle-click anywhere on the map to drop one end of a ruler, click again for the other.
+              You get magnetic bearing, slant range, and elevation delta — terrain elevation comes
+              straight from DCS, not from a tile heightmap.
+            </p>
+          </div>
+          <figure class="shot">
+            <img src="assets/bra.png" alt="BRA measurement tool showing bearing, range, and elevation between two points." />
+          </figure>
+        </div>
+
+        <div class="feature">
+          <div class="feature-text">
+            <h3>Flight plan + F10 marks</h3>
+            <p>
+              Mission waypoints rendered as polylines with always-on labels (name and ETA), pulled
+              from the live <code>env.mission</code> table. Every F10 mark you drop in DCS appears
+              on the map too — caption shown alongside — filtered by your own coalition and group.
+            </p>
+          </div>
+          <figure class="shot">
+            <img src="assets/routes.png" alt="Flight plan polyline overlay with waypoint labels and F10 map marks." />
+          </figure>
+        </div>
+
+        <div class="feature alt">
+          <div class="feature-text">
+            <h3>SAM &amp; AAA threat rings</h3>
+            <p>
+              Published max engagement ranges for known SAM and AAA systems, drawn live around each
+              site as units move. Threat data lives in
+              <a href="https://github.com/mizmap/mizmap/blob/master/mizmap/data/units.yaml" target="_blank" rel="noopener"><code>mizmap/data/units.yaml</code></a>
+              — community-extensible.
+            </p>
+          </div>
+          <figure class="shot">
+            <img src="assets/threats.png" alt="SAM threat rings drawn around ground-based air defense units on the map." />
+          </figure>
+        </div>
+
+        <div class="feature">
+          <div class="feature-text">
+            <h3>Navigation mode</h3>
+            <p>
+              One toggle and the map starts following you, with a top-center panel for the next
+              waypoint: bearing (magnetic), distance, and ETA from current speed. Designed for a
+              second monitor or tablet kneeboard.
+            </p>
+          </div>
+          <figure class="shot">
+            <img src="assets/nav.png" alt="Navigation mode panel showing the next waypoint, magnetic bearing, distance, and ETA." />
+          </figure>
+        </div>
+
+        <ul class="feature-bullets">
+          <li><strong>Vector trails.</strong> Configurable-length motion trails so a fast-mover's track is obvious at a glance.</li>
+          <li><strong>Local tile cache.</strong> Works offline once warm. No more tile-server rate-limit surprises.</li>
+          <li><strong>LAN-friendly.</strong> Open the viewer from any browser on the same network — phone, tablet, second PC.</li>
+          <li><strong>Responsive kneeboard layout.</strong> On a tablet or phone the panels collapse and the map fills the screen.</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- QUICKSTART ──────────────────────────────────────────────── -->
+    <section id="quickstart" class="quickstart">
+      <div class="container">
+        <h2 class="eyebrow">// Install</h2>
+        <ol class="steps">
+          <li>
+            <h3>Install DCS-gRPC rust-server</h3>
+            <p>
+              Drop the Hooks DLL into your DCS install and enable
+              <code>evalEnabled = true</code> in
+              <code>Saved Games/DCS/Config/dcs-grpc.lua</code>.
+              <a href="https://github.com/DCS-gRPC/rust-server" target="_blank" rel="noopener">Project page&nbsp;↗</a>
+            </p>
+          </li>
+          <li>
+            <h3>Grab the installer</h3>
+            <p>
+              Download <code>mizmap-setup-&lt;version&gt;.exe</code> from the latest
+              <a href="https://github.com/mizmap/mizmap/releases/latest" target="_blank" rel="noopener">GitHub release</a>
+              and run it. MizMap installs per-user under
+              <code>%LOCALAPPDATA%\Programs\MizMap\</code> — no admin needed.
+            </p>
+            <p class="note">
+              The installer is unsigned, so SmartScreen shows an
+              "unknown publisher" warning the first time. Click
+              <em>More info</em> → <em>Run anyway</em>.
+            </p>
+          </li>
+          <li>
+            <h3>Launch MizMap</h3>
+            <p>
+              Start <strong>MizMap</strong> from the Start menu. A tray icon appears
+              and the viewer opens in your default browser. Load any single-player
+              mission in DCS and units start streaming.
+            </p>
+          </li>
+          <li>
+            <h3>Open from anywhere on the LAN</h3>
+            <p>
+              Point any browser on the same Wi-Fi at
+              <code>http://&lt;dcs-pc-ip&gt;:8766</code>. Bring a tablet to the
+              cockpit; keep a second monitor as a kneeboard.
+            </p>
+          </li>
+        </ol>
+
+        <div class="from-source">
+          <h3>Prefer to run from source?</h3>
+          <p>
+            <code>uv sync</code>, <code>./scripts/regen_protos.sh</code>,
+            <code>uv run mizmap serve</code>. Full instructions in the
+            <a href="https://github.com/mizmap/mizmap#readme" target="_blank" rel="noopener">README</a>.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ARCHITECTURE ────────────────────────────────────────────── -->
+    <section id="architecture" class="architecture">
+      <div class="container">
+        <h2 class="eyebrow">// Architecture</h2>
+        <p class="arch-body">
+          DCS-gRPC streams unit and event data over a local socket. A small Python backend
+          (FastAPI&nbsp;+&nbsp;async&nbsp;gRPC) maintains the in-memory mission state and fans it
+          out to browsers over a WebSocket. The viewer is vanilla JS&nbsp;+&nbsp;Leaflet with
+          MIL-STD-2525C symbology — no build step.
+        </p>
+<pre class="arch-diagram"><code>DCS World (Windows)
+   │
+   ├── DCS-gRPC rust-server (Hooks DLL)  ── gRPC :50051
+   │
+   ▼
+MizMap backend (Python, FastAPI)
+   ├── async gRPC client → unit/event streams
+   ├── in-memory mission state
+   ├── HTTP/WebSocket server (default :8766)
+   └── serves the web viewer
+   │
+   ▼
+MizMap viewer (browser, Leaflet + MIL-STD-2525 symbology)
+   on the DCS PC and/or a LAN tablet</code></pre>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container row">
+      <div class="footer-left">
+        <span class="brand">
+          <img class="brand-glyph" src="assets/mizmap-icon.png" alt="" width="20" height="20" />
+          <span class="brand-text">MizMap</span>
+        </span>
+        <span class="muted">single-player DCS World moving-map viewer</span>
+      </div>
+      <div class="footer-right muted">
+        Inspired by <a href="https://movingmap.bergison.com" target="_blank" rel="noopener">DCS&nbsp;MovingMap</a>
+        · <a href="https://github.com/mizmap/mizmap" target="_blank" rel="noopener">github.com/mizmap/mizmap</a>
+      </div>
+    </div>
+  </footer>
+
+  <script src="main.js" defer></script>
+</body>
+</html>

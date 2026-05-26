@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+    <title>MizMap</title>
+
+    <link
+        rel="stylesheet"
+        href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+        crossorigin=""
+    />
+    <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+    <div id="map"></div>
+
+    <!-- Kneeboard-only controls. CSS hides these on the main view. -->
+    <button type="button" id="kbMenuBtn" class="kb-floating kb-menu-btn" aria-label="Toggle filters">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg>
+    </button>
+    <button type="button" id="kbMeasureBtn" class="kb-floating kb-measure-btn" aria-label="Measure (tap then tap a point)">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17 17 3l4 4L7 21z"/><path d="m7 13 2 2"/><path d="m10 10 2 2"/><path d="m13 7 2 2"/></svg>
+    </button>
+
+    <div id="filters">
+        <div class="filter-section-label">Coalition</div>
+        <label class="filter-row"><span class="filter-name">Blue</span><input type="checkbox" data-filter="coalition" data-value="3" checked /><span class="mizmap-switch-track"><span class="mizmap-switch-thumb"></span></span></label>
+        <label class="filter-row"><span class="filter-name">Red</span><input type="checkbox" data-filter="coalition" data-value="2" checked /><span class="mizmap-switch-track"><span class="mizmap-switch-thumb"></span></span></label>
+        <label class="filter-row"><span class="filter-name">Neutral</span><input type="checkbox" data-filter="coalition" data-value="1" checked /><span class="mizmap-switch-track"><span class="mizmap-switch-thumb"></span></span></label>
+        <div class="filter-section-label">Category</div>
+        <label class="filter-row"><span class="filter-name">Plane</span><input type="checkbox" data-filter="category" data-value="1" checked /><span class="mizmap-switch-track"><span class="mizmap-switch-thumb"></span></span></label>
+        <label class="filter-row"><span class="filter-name">Helo</span><input type="checkbox" data-filter="category" data-value="2" checked /><span class="mizmap-switch-track"><span class="mizmap-switch-thumb"></span></span></label>
+        <label class="filter-row"><span class="filter-name">Ground</span><input type="checkbox" data-filter="category" data-value="3" checked /><span class="mizmap-switch-track"><span class="mizmap-switch-thumb"></span></span></label>
+        <label class="filter-row"><span class="filter-name">Ship</span><input type="checkbox" data-filter="category" data-value="4" checked /><span class="mizmap-switch-track"><span class="mizmap-switch-thumb"></span></span></label>
+        <label class="filter-row"><span class="filter-name">Train</span><input type="checkbox" data-filter="category" data-value="5" checked /><span class="mizmap-switch-track"><span class="mizmap-switch-thumb"></span></span></label>
+        <div class="filter-section-label">Layers</div>
+        <label class="filter-row"><span class="filter-name">Routes</span><input type="checkbox" data-filter="layers" data-value="routes" checked /><span class="mizmap-switch-track"><span class="mizmap-switch-thumb"></span></span></label>
+        <label class="filter-row"><span class="filter-name">Bullseyes</span><input type="checkbox" data-filter="layers" data-value="bullseyes" checked /><span class="mizmap-switch-track"><span class="mizmap-switch-thumb"></span></span></label>
+        <label class="filter-row"><span class="filter-name">Map marks</span><input type="checkbox" data-filter="layers" data-value="marks" checked /><span class="mizmap-switch-track"><span class="mizmap-switch-thumb"></span></span></label>
+        <label class="filter-row"><span class="filter-name">Measure</span><input type="checkbox" data-filter="layers" data-value="measure" checked /><span class="mizmap-switch-track"><span class="mizmap-switch-thumb"></span></span></label>
+        <label class="filter-row"><span class="filter-name">Threats</span><input type="checkbox" data-filter="layers" data-value="threats" checked /><span class="mizmap-switch-track"><span class="mizmap-switch-thumb"></span></span></label>
+        <label class="filter-row"><span class="filter-name">Vectors</span><input type="checkbox" data-filter="layers" data-value="vectors" checked /><span class="mizmap-switch-track"><span class="mizmap-switch-thumb"></span></span></label>
+        <label class="filter-row"><span class="filter-name">Trails</span><input type="checkbox" data-filter="layers" data-value="trails" checked /><span class="mizmap-switch-track"><span class="mizmap-switch-thumb"></span></span></label>
+        <div class="filter-row filter-row-select" id="trailLengthRow">
+            <label for="trailLengthSel" class="filter-sublabel">Length</label>
+            <select id="trailLengthSel" class="filter-select">
+                <option value="15">15 s</option>
+                <option value="30">30 s</option>
+                <option value="60" selected>1 min</option>
+                <option value="120">2 min</option>
+                <option value="300">5 min</option>
+            </select>
+        </div>
+        <div class="filter-section-divider"></div>
+        <div class="filter-row filter-row-status">
+            <span class="filter-name">MizMap</span>
+            <span class="filter-status-value" id="versionLabel">v?</span>
+        </div>
+        <div class="filter-row filter-row-status">
+            <span class="filter-name">WS</span>
+            <span id="wsStatus" class="status status-down filter-status-value">disconnected</span>
+        </div>
+        <div class="filter-row filter-row-status">
+            <span class="filter-name">DCS-gRPC</span>
+            <span id="grpcStatus" class="status status-down filter-status-value">disconnected</span>
+        </div>
+        <div class="filter-row-error" id="grpcError" hidden></div>
+    </div>
+
+    <div id="navpanel">
+        <label class="nav-switch" title="Toggle navigation mode">
+            <span class="nav-switch-label">NAV</span>
+            <input type="checkbox" id="navToggle" />
+            <span class="mizmap-switch-track"><span class="mizmap-switch-thumb"></span></span>
+        </label>
+        <div class="nav-data" id="navData" hidden>
+            <div class="nav-cell nav-wp">
+                <span class="nav-label">WP</span>
+                <div class="nav-wp-controls">
+                    <button type="button" class="nav-wp-arrow" id="navWpPrev" aria-label="Previous waypoint" title="Previous waypoint">‹</button>
+                    <span class="nav-value" id="navWp">—</span>
+                    <button type="button" class="nav-wp-arrow" id="navWpNext" aria-label="Next waypoint" title="Next waypoint">›</button>
+                </div>
+            </div>
+            <div class="nav-cell"><span class="nav-label">BRG</span><span class="nav-value" id="navBrg">—</span></div>
+            <div class="nav-cell"><span class="nav-label">DIST</span><span class="nav-value" id="navDist">—</span></div>
+            <div class="nav-cell"><span class="nav-label">ETA</span><span class="nav-value" id="navEta">—</span></div>
+        </div>
+    </div>
+
+    <div id="measure" hidden>
+        <div class="measure-header">
+            <span class="measure-title">MEASURE</span>
+            <button type="button" id="measureClear" class="measure-clear" title="Clear (or right-click on map)">×</button>
+        </div>
+        <div class="measure-row" id="measureBullRow">
+            <span class="tlm-label" id="measureBullLabel">Bull</span>
+            <span class="tlm-value" id="measureBull">—</span>
+            <button type="button" class="measure-copy" data-copy="bull" title="Copy" aria-label="Copy bullseye BRA">
+                <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><rect x="5" y="5" width="9" height="9" rx="1"/><path d="M3 11V3a1 1 0 0 1 1-1h8"/></svg>
+            </button>
+        </div>
+        <div class="measure-row" id="measureSelfOutRow">
+            <span class="tlm-label">Self → Tgt</span>
+            <span class="tlm-value" id="measureSelfOut">—</span>
+            <button type="button" class="measure-copy" data-copy="self-out" title="Copy" aria-label="Copy self-to-target BRA">
+                <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><rect x="5" y="5" width="9" height="9" rx="1"/><path d="M3 11V3a1 1 0 0 1 1-1h8"/></svg>
+            </button>
+        </div>
+        <div class="measure-row" id="measureSelfInRow">
+            <span class="tlm-label">Tgt → Self</span>
+            <span class="tlm-value" id="measureSelfIn">—</span>
+            <button type="button" class="measure-copy" data-copy="self-in" title="Copy" aria-label="Copy target-to-self BRA">
+                <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><rect x="5" y="5" width="9" height="9" rx="1"/><path d="M3 11V3a1 1 0 0 1 1-1h8"/></svg>
+            </button>
+        </div>
+        <div class="measure-row measure-alt-row">
+            <span class="tlm-label">Alt</span>
+            <span class="tlm-value" id="measureAlt">…</span>
+        </div>
+    </div>
+
+    <div id="telemetry" data-empty="true" data-selected="false">
+        <div class="tlm-cell tlm-name" id="tlmName">—</div>
+        <div class="tlm-cell"><span class="tlm-label">LAT</span><span class="tlm-value" id="tlmLat">—</span></div>
+        <div class="tlm-cell"><span class="tlm-label">LON</span><span class="tlm-value" id="tlmLon">—</span></div>
+        <div class="tlm-cell tlm-mgrs"><span class="tlm-label">MGRS</span><span class="tlm-value" id="tlmMgrs">—</span></div>
+        <div class="tlm-cell"><span class="tlm-label">ALT</span><span class="tlm-value" id="tlmAlt">—</span></div>
+        <div class="tlm-cell"><span class="tlm-label">GS</span><span class="tlm-value" id="tlmGs">—</span></div>
+        <div class="tlm-cell"><span class="tlm-label">VS</span><span class="tlm-value" id="tlmVs">—</span></div>
+        <div class="tlm-cell"><span class="tlm-label">HDG</span><span class="tlm-value" id="tlmHdg">—</span></div>
+    </div>
+
+    <script
+        src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+        crossorigin=""
+    ></script>
+    <script src="https://unpkg.com/milsymbol@2.2.0/dist/milsymbol.js"></script>
+    <script src="https://unpkg.com/mgrs@2.1.0/dist/mgrs.js"></script>
+    <script src="/main.js"></script>
+</body>
+</html>

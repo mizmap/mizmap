@@ -1,0 +1,50 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+env/
+
+# Testing / coverage
+.pytest_cache/
+.coverage
+htmlcov/
+.ruff_cache/
+.mypy_cache/
+
+# Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Local config / secrets
+.env
+.env.local
+
+# Claude Code per-machine settings
+.claude/settings.local.json
+
+# Local-only dev notes — never published. Decision history lives here for
+# the maintainer's reference; the repo itself stays code + docs only.
+.journal/
+
+# Generated proto stubs are committed (so end users don't need grpcio-tools at install time),
+# but allow regeneration without dirtying the tree during dev:
+# (keep mizmap/proto_gen/ checked in — do NOT ignore it)
+
+# Logs / runtime
+*.log
+
+# Local tile cache (MIZMAP_TILE_CACHE_DIR default; wipe with `mizmap clear-cache`)
+cache/
+
+# Override global ~/.gitignore — track CLAUDE.md in this repo so it travels
+# with the codebase and briefs future Claude Code sessions.
+!CLAUDE.md

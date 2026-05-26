@@ -1,0 +1,278 @@
+# Per-DCS-type lookup for refined MIL-STD-2525C symbology + SAM/AAA engagement ranges.
+#
+# Schema: keys are DCS unit type strings (the `Unit.type` proto field). Each entry has:
+#   sidc:       7-char string = 1-char battle dimension + 6-char function code.
+#               Spliced into chars 3 + 5-10 of the full 15-char SIDC; affiliation
+#               (chars 1-2) and status (4) and modifiers (11-15) come from runtime.
+#               Dimension: A=air, G=ground, S=sea-surface. Function codes per
+#               MIL-STD-2525C — common ones used here:
+#                 A* aircraft (M=military, F=fixed-wing, H=rotary-wing):
+#                   MFF (fighter), MFA (attack/strike), MFB (bomber),
+#                   MFC (cargo / aerial-refuel tanker), MFR (recon),
+#                   MFRW (AEW), MHA (attack helo), MHC (cargo helo),
+#                   MHU (utility helo)
+#                 G* ground:
+#                   UCAAM (MBT), UCAW (wheeled armor), UCATA (tracked APC),
+#                   UCAWA (wheeled APC), UCF (field artillery), UCI (infantry),
+#                   UCDA (AAA), UCDSA (SAM long-range), UCDSB (SAM medium-range),
+#                   UCDSC (SAM short-range), UUMSE (ELINT / non-engaging radar),
+#                   EVATL/M/H (truck — light/medium/heavy; the "equipment"
+#                   branch used for soft-skin cargo/utility vehicles)
+#                 S* sea-surface:
+#                   CLCV (aircraft carrier), CLCC (cruiser), CLDD (destroyer),
+#                   CLFF (frigate), CN (non-combatant)
+#
+#   threat_km:  optional. Approximate max engagement range in kilometers. Set on
+#               weapon-emitting units only (SAM launchers, AAA, MANPADS).
+#               Search/track radars get a refined `sidc` but no `threat_km` —
+#               the launcher carries the ring. Values are best-effort
+#               approximations from DCS-Wiki / Hoggit / open sources; tweak
+#               freely when sources contradict.
+#
+# Anything not listed falls back to the coarse coalition×category mapping in
+# mizmap/sidc.py. Missing entries are NOT an error.
+
+units:
+
+  # ─── Air defense — SAM launchers (sidc + threat_km) ──────────────────────
+  # milsymbol recognises the equipment-family codes EWMAL- (long range),
+  # EWMAI- (intermediate range), EWMAS- (short range). The unit-family UCDS*
+  # codes only have entries for a handful of specific systems (Chaparral,
+  # Stinger, Vulcan) and fall back to "?" placeholders otherwise.
+  # SA-10 (S-300PS)
+  "S-300PS 40B6M tr":       { sidc: "GEWMAL-", threat_km: 75 }   # TEL on truck (transporter-erector-launcher)
+  "S-300PS 5P85C ln":       { sidc: "GEWMAL-", threat_km: 75 }   # cold-launch launcher (older variant)
+  "S-300PS 5P85D ln":       { sidc: "GEWMAL-", threat_km: 75 }
+  # SA-5 (S-200)
+  "S-200_Launcher":         { sidc: "GEWMAT-", threat_km: 250 }  # theatre range
+  # Patriot
+  "Patriot ln":             { sidc: "GEWMAL-", threat_km: 80 }
+  # Hawk
+  "Hawk ln":                { sidc: "GEWMAI-", threat_km: 40 }
+  # SA-2 (S-75)
+  "S_75M_Volhov":           { sidc: "GEWMAI-", threat_km: 43 }
+  # SA-3 (S-125)
+  "5p73 s-125 ln":          { sidc: "GEWMAI-", threat_km: 25 }
+  # SA-6 (Kub)
+  "Kub 2P25 ln":            { sidc: "GEWMAI-", threat_km: 24 }
+  # SA-11 (Buk)
+  "SA-11 Buk LN 9A310M1":   { sidc: "GEWMAI-", threat_km: 32 }
+  # SA-15 (Tor)
+  "Tor 9A331":              { sidc: "GEWMAS-", threat_km: 12 }
+  # SA-19 (Tunguska) — treated as SAM (also has 30mm AAA, modelled as the longer SAM envelope)
+  "2S6 Tunguska":           { sidc: "GEWMAS-", threat_km: 8 }
+  # SA-8 (Osa)
+  "Osa 9A33 ln":            { sidc: "GEWMAS-", threat_km: 10 }
+  # SA-13 (Strela-10)
+  "Strela-10M3":            { sidc: "GEWMAS-", threat_km: 5 }
+  # SA-9 (Strela-1)
+  "Strela-1 9P31":          { sidc: "GEWMAS-", threat_km: 4 }
+  # Roland
+  "Roland ADS":             { sidc: "GEWMAS-", threat_km: 6.5 }
+  # Rapier
+  "Rapier_fsa_launcher":    { sidc: "GEWMAS-", threat_km: 7 }
+  # NASAMS
+  "NASAMS_LN_B":            { sidc: "GEWMAI-", threat_km: 25 }
+  "NASAMS_LN_C":            { sidc: "GEWMAI-", threat_km: 25 }
+  # Chaparral / Stinger
+  "M48 Chaparral":          { sidc: "GEWMAS-", threat_km: 6 }
+  "M6 Linebacker":          { sidc: "GEWMAS-", threat_km: 8 }
+  "M1097 Avenger":          { sidc: "GEWMAS-", threat_km: 8 }
+
+  # ─── Air defense — AAA (sidc + threat_km) ────────────────────────────────
+  # EWAL-- = short range, EWAM-- = intermediate range. EWAH-- (long-range)
+  # exists too but DCS doesn't model that scale of legacy AAA.
+  "ZSU-23-4 Shilka":        { sidc: "GEWAM--", threat_km: 2.5 }  # radar-directed → "intermediate" relative to optical AAA
+  "Gepard":                 { sidc: "GEWAM--", threat_km: 5 }
+  "Vulcan":                 { sidc: "GEWAL--", threat_km: 2 }
+  "ZU-23 Emplacement":      { sidc: "GEWAL--", threat_km: 2.5 }
+  "ZU-23 Emplacement Closed": { sidc: "GEWAL--", threat_km: 2.5 }
+  "ZU-23 Insurgent":        { sidc: "GEWAL--", threat_km: 2.5 }
+  "ZU-23 Closed Insurgent": { sidc: "GEWAL--", threat_km: 2.5 }
+  "Ural-375 ZU-23":         { sidc: "GEWAL--", threat_km: 2.5 }   # ZU-23 on a truck (technical)
+  "Ural-375 ZU-23 Insurgent": { sidc: "GEWAL--", threat_km: 2.5 } # insurgent variant of the technical
+  "ZSU_57_2":               { sidc: "GEWAM--", threat_km: 6 }     # twin-57mm radar-AAA
+  # MANPADS (sidc + threat_km)
+  "Igla manpad INS":        { sidc: "GEWMAS-", threat_km: 5 }     # SA-18
+  "SA-18 Igla comm":        { sidc: "GUUMSE-" }                   # command vehicle (no ring)
+  "Stinger comm":           { sidc: "GUUMSE-" }
+  "Soldier stinger":        { sidc: "GEWMAS-", threat_km: 5 }
+
+  # ─── Air defense — radars / command (sidc only, no ring) ─────────────────
+  "S-300PS 64H6E sr":       { sidc: "GUUMSE-" }
+  "S-300PS 40B6MD sr":      { sidc: "GUUMSE-" }
+  "S-300PS 54K6 cp":        { sidc: "GUUMSE-" }
+  "Hawk tr":                { sidc: "GUUMSE-" }
+  "Hawk sr":                { sidc: "GUUMSE-" }
+  "Hawk cwar":              { sidc: "GUUMSE-" }
+  "Hawk pcp":               { sidc: "GUUMSE-" }
+  "Patriot str":            { sidc: "GUUMSE-" }
+  "Patriot cp":             { sidc: "GUUMSE-" }
+  "Patriot ECS":            { sidc: "GUUMSE-" }
+  "Patriot EPP":            { sidc: "GUUMSE-" }
+  "Patriot AMG":            { sidc: "GUUMSE-" }
+  "snr s-125 tr":           { sidc: "GUUMSE-" }
+  "p-19 s-125 sr":          { sidc: "GUUMSE-" }
+  "RLS_19J6":               { sidc: "GUUMSE-" }
+  "Kub 1S91 str":           { sidc: "GUUMSE-" }
+  "SA-11 Buk SR 9S18M1":    { sidc: "GUUMSE-" }
+  "SA-11 Buk CC 9S470M1":   { sidc: "GUUMSE-" }
+  "NASAMS_Radar_MPQ64F1":   { sidc: "GUUMSE-" }
+  "NASAMS_Command_Post":    { sidc: "GUUMSE-" }
+  "Dog Ear radar":          { sidc: "GUUMSE-" }   # 1L122 search radar (Tor/Tunguska)
+  "55G6 EWR":               { sidc: "GUUMSE-" }   # "Nebo" long-range early warning radar
+  "Ural-375 PBU":           { sidc: "GUUMSE-" }   # truck-mounted mobile command post
+
+  # ─── Armor — MBTs ────────────────────────────────────────────────────────
+  "M-1 Abrams":             { sidc: "GUCAAM-" }
+  "T-72B":                  { sidc: "GUCAAM-" }
+  "T-72B3":                 { sidc: "GUCAAM-" }
+  "T-80UD":                 { sidc: "GUCAAM-" }
+  "T-90":                   { sidc: "GUCAAM-" }
+  "Leopard-2":              { sidc: "GUCAAM-" }
+  "Leopard1A3":             { sidc: "GUCAAM-" }
+  "Challenger2":            { sidc: "GUCAAM-" }
+  "Merkava_Mk4":            { sidc: "GUCAAM-" }
+  "Leclerc":                { sidc: "GUCAAM-" }
+
+  # ─── Armor — IFV/APC ─────────────────────────────────────────────────────
+  "M-2 Bradley":            { sidc: "GUCATA-" }
+  "M-113":                  { sidc: "GUCATA-" }   # US tracked APC
+  "BMP-1":                  { sidc: "GUCATA-" }
+  "BMP-2":                  { sidc: "GUCATA-" }
+  "BMP-3":                  { sidc: "GUCATA-" }
+  "BTR-80":                 { sidc: "GUCAWA-" }
+  "BTR-82A":                { sidc: "GUCAWA-" }
+  "M1126 Stryker ICV":      { sidc: "GUCAWA-" }
+  "LAV-25":                 { sidc: "GUCAWA-" }
+
+  # ─── Artillery ───────────────────────────────────────────────────────────
+  "M-109":                  { sidc: "GUCF---" }
+  "2S1 Gvozdika":           { sidc: "GUCF---" }
+  "2S19_Msta":              { sidc: "GUCF---" }
+  "M-1 (towed gun)":        { sidc: "GUCF---" }
+  "Smerch":                 { sidc: "GEWXH--" }   # multiple rocket launcher, long-range (BM-30)
+  "MLRS":                   { sidc: "GEWXH--" }   # M270 MLRS
+  "Grad-URAL":              { sidc: "GEWXM--" }   # BM-21 Grad, ~20 km — intermediate
+  # Tactical ballistic missile launchers (Scud etc) — surface-to-surface theatre missile
+  "Scud_B":                 { sidc: "GEWMSS-" }   # SSM, short-range tactical ballistic (Scud-B ~300 km)
+
+  # ─── Logistics / soft skin (EVAT[LMH]- = equipment/vehicle/auto/truck/{light,medium,heavy})
+  # NB: `GUCAWMS` was used here pre-2026-05-26 but is not a valid 2525C code —
+  # milsymbol renders it as a "?" box. Switched to EVAT[LMH]- which is the
+  # canonical "truck" branch under the equipment dimension.
+  "Hummer":                 { sidc: "GUCAWA-" }   # armed Humvees often appear in DCS scenarios
+  "Tigr_233036":            { sidc: "GUCAWA-" }
+  "M 818":                  { sidc: "GEVATM-" }   # 5-ton cargo truck (medium)
+  "KAMAZ Truck":            { sidc: "GEVATM-" }
+  "Ural-375":               { sidc: "GEVATM-" }
+  "Land_Rover_109_S3":      { sidc: "GEVATL-" }   # British utility 4x4 (light)
+  "Land_Rover_101_FC":      { sidc: "GEVATL-" }   # British 1-tonne forward control truck (light)
+  "KrAZ6322":               { sidc: "GEVATH-" }   # Ukrainian heavy 6x6 cargo truck
+  # DCS naming inconsistency: APA-80 uses lowercase "ZiL", KUNG uses uppercase "ZIL".
+  # Lookup is case-insensitive (see mizmap/typedb.py), so one spelling each is enough.
+  "ZiL-131 APA-80":         { sidc: "GEVATM-" }   # airfield ground-power unit on ZiL chassis
+  "ZIL-131 KUNG":           { sidc: "GEVATM-" }   # ZIL-131 with KUNG utility shelter body
+
+  # ─── Static structures / installations ───────────────────────────────────
+  # 2525C function code IRM--- = generic military installation. milsymbol
+  # rendering of installation codes is hit-and-miss; revisit if these come
+  # back as "?" boxes.
+  "outpost_road":           { sidc: "GIRM---" }   # fortified road outpost (static)
+
+  # ─── Aircraft — fighters ─────────────────────────────────────────────────
+  "F-15C":                  { sidc: "AMFF---" }
+  "F-14B":                  { sidc: "AMFF---" }
+  "F-14A-135-GR":           { sidc: "AMFF---" }
+  "F-86F Sabre":            { sidc: "AMFF---" }
+  "M-2000C":                { sidc: "AMFF---" }
+  "MiG-21Bis":              { sidc: "AMFF---" }
+  "MiG-29A":                { sidc: "AMFF---" }
+  "MiG-29S":                { sidc: "AMFF---" }
+  "MiG-23MLD":              { sidc: "AMFF---" }
+  "Su-27":                  { sidc: "AMFF---" }
+  "Su-33":                  { sidc: "AMFF---" }
+  "MiG-25PD":               { sidc: "AMFF---" }
+  "MiG-31":                 { sidc: "AMFFI--" }   # interceptor (high-altitude long-range)
+  "F-5E-3":                 { sidc: "AMFF---" }
+  "F-5E":                   { sidc: "AMFF---" }
+
+  # ─── Aircraft — strike / attack ──────────────────────────────────────────
+  "FA-18C_hornet":          { sidc: "AMFA---" }
+  "F-15E":                  { sidc: "AMFA---" }
+  "F-15ESE":                { sidc: "AMFA---" }
+  "F-16C bl.52d":           { sidc: "AMFA---" }
+  "F-16C_50":               { sidc: "AMFA---" }
+  "A-10C":                  { sidc: "AMFA---" }
+  "A-10C_2":                { sidc: "AMFA---" }
+  "A-10A":                  { sidc: "AMFA---" }
+  "AV8BNA":                 { sidc: "AMFA---" }
+  "JF-17":                  { sidc: "AMFA---" }
+  "Su-25":                  { sidc: "AMFA---" }
+  "Su-25T":                 { sidc: "AMFA---" }
+  "Su-30":                  { sidc: "AMFA---" }
+
+  # ─── Aircraft — bombers ──────────────────────────────────────────────────
+  "Su-34":                  { sidc: "AMFB---" }
+  "Tu-22M3":                { sidc: "AMFB---" }
+  "Tu-95MS":                { sidc: "AMFB---" }
+  "B-1B":                   { sidc: "AMFB---" }
+  "B-52H":                  { sidc: "AMFB---" }
+
+  # ─── Aircraft — tanker / cargo ───────────────────────────────────────────
+  "KC-135":                 { sidc: "AMFC---" }
+  "KC135MPRS":              { sidc: "AMFC---" }
+  "IL-78M":                 { sidc: "AMFC---" }
+  "C-130":                  { sidc: "AMFC---" }
+  "S-3B Tanker":            { sidc: "AMFC---" }
+
+  # ─── Aircraft — AEW / recon / UAV ────────────────────────────────────────
+  "E-3A":                   { sidc: "AMFRW--" }
+  "A-50":                   { sidc: "AMFRW--" }
+  "E-2C":                   { sidc: "AMFRW--" }
+  "MiG-25RBT":              { sidc: "AMFRX--" }   # photo recon
+  "RQ-1A Predator":         { sidc: "AMFR---" }   # UAV (no dedicated UAV symbol in 2525C)
+  "MQ-9 Reaper":            { sidc: "AMFR---" }
+  "Predator TrojanSpirit":  { sidc: "GUUMSE-" }   # SATCOM ground vehicle
+
+  # ─── Helicopters ─────────────────────────────────────────────────────────
+  "AH-64D":                 { sidc: "AMHA---" }
+  "Mi-24P":                 { sidc: "AMHA---" }
+  "Mi-24V":                 { sidc: "AMHA---" }
+  "Mi-28N":                 { sidc: "AMHA---" }
+  "Ka-50":                  { sidc: "AMHA---" }
+  "Ka-50_3":                { sidc: "AMHA---" }
+  "Mi-8MT":                 { sidc: "AMHU---" }
+  "UH-1H":                  { sidc: "AMHU---" }
+  "SA342M":                 { sidc: "AMHU---" }
+  "SA342L":                 { sidc: "AMHU---" }
+  "OH58D":                  { sidc: "AMHU---" }
+  "CH-47Fbl1":              { sidc: "AMHC---" }
+  "CH-53E":                 { sidc: "AMHC---" }
+
+  # ─── Ships ───────────────────────────────────────────────────────────────
+  "CV_1143_5":              { sidc: "SCLCV--" }   # Kuznetsov
+  "KUZNECOW":               { sidc: "SCLCV--" }
+  "Stennis":                { sidc: "SCLCV--" }
+  "CVN_70":                 { sidc: "SCLCV--" }
+  "CVN_71":                 { sidc: "SCLCV--" }
+  "CVN_72":                 { sidc: "SCLCV--" }
+  "CVN_73":                 { sidc: "SCLCV--" }
+  "CVN_74":                 { sidc: "SCLCV--" }
+  "CVN_75":                 { sidc: "SCLCV--" }
+  "USS_Arleigh_Burke_IIa":  { sidc: "SCLDD--" }
+  "Ticonderoga":            { sidc: "SCLCC--" }
+  "TICONDEROG":             { sidc: "SCLCC--" }
+  "PERRY":                  { sidc: "SCLFF--" }
+  "OliverHazardPerryFFG":   { sidc: "SCLFF--" }
+  "MOLNIYA":                { sidc: "SCLFF--" }   # corvette → frigate symbol
+  "ALBATROS":               { sidc: "SCLFF--" }
+  "MOSCOW":                 { sidc: "SCLCC--" }   # Slava
+  "PIOTR":                  { sidc: "SCLCC--" }   # Kirov
+  "REZKY":                  { sidc: "SCLFF--" }
+  "NEUSTRASH":              { sidc: "SCLFF--" }
+  "ELNYA":                  { sidc: "SCN----" }
+  "Dry-cargo ship-2":       { sidc: "SCNM---" }
+  "Type_052B":              { sidc: "SCLDD--" }
+  "Type_052C":              { sidc: "SCLDD--" }
+  "Type_054A":              { sidc: "SCLFF--" }

@@ -1,0 +1,59 @@
+[project]
+name = "mizmap"
+version = "0.1.0"
+description = "MizMap — live moving-map viewer for DCS World single-player missions."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    "grpcio>=1.66",
+    "protobuf>=5.27",
+    "typer>=0.12",
+    "pyyaml>=6.0",
+    "httpx>=0.27",
+    "websockets>=13.0",
+    # Tray icon for the frozen Windows app. Marked platform-specific so
+    # `uv sync` on the Mac dev box doesn't pull in pyobjc (50+ MB).
+    'pystray>=0.19; sys_platform == "win32"',
+    'pillow>=10.0; sys_platform == "win32"',
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.24",
+    "ruff>=0.6",
+    # grpcio-tools is only needed to regenerate proto stubs via
+    # scripts/regen_protos.sh. Keeping it out of runtime deps trims ~50 MB
+    # from the frozen PyInstaller bundle.
+    "grpcio-tools>=1.66",
+    # Windows packaging (see packaging/mizmap.spec). Marked platform-specific
+    # because the Mac dev box has no need to build the Windows installer.
+    'pyinstaller>=6.10; sys_platform == "win32"',
+]
+
+[project.scripts]
+mizmap = "mizmap.cli:app"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["mizmap"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"web" = "mizmap/_web"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "W"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]

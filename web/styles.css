@@ -1,0 +1,766 @@
+html, body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: #0b0b0b;
+    color: #d6d6d6;
+}
+
+#map {
+    position: absolute;
+    inset: 0;
+    background: #0b0b0b;
+}
+
+/* milsymbol-backed divIcons need transparent backgrounds. Selected units get
+   their white fill via milsymbol's colorMode (see main.js), not via CSS. */
+.milsymbol {
+    background: transparent;
+    border: none;
+}
+
+#filters {
+    position: absolute;
+    top: 12px;
+    left: 12px;
+    /* Clear the always-visible hamburger menu button (48px tall + 8px gap). */
+    margin-top: 56px;
+    z-index: 1000;
+    background: rgba(20, 20, 20, 0.85);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 8px;
+    padding: 8px 12px 10px;
+    font-size: 12px;
+    line-height: 1.4;
+    min-width: 130px;
+    user-select: none;
+}
+
+/* Desktop: panel is visible by default; .kb-closed hides it via the menu
+   button. Tablet uses .kb-open in the inverse direction (see media block). */
+#filters.kb-closed {
+    display: none;
+}
+
+.filter-section-label {
+    color: #9aa0a6;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-size: 10px;
+    padding: 4px 0 2px;
+}
+
+.filter-section-label + .filter-row {
+    padding-top: 2px;
+}
+
+.filter-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 3px 0;
+    cursor: pointer;
+}
+
+/* Filter-row checkbox is hidden; .mizmap-switch-track is the rendered control. */
+.filter-row input[type="checkbox"] {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+    width: 0;
+    height: 0;
+}
+
+.filter-row .filter-name {
+    color: #d6d6d6;
+}
+
+.filter-row:has(input:not(:checked)) .filter-name {
+    color: #6a6a6a;
+    text-decoration: line-through;
+}
+
+.filter-row-select {
+    padding-left: 22px;
+    gap: 6px;
+    cursor: default;
+}
+
+.filter-sublabel {
+    color: #9aa0a6;
+    font-size: 11px;
+}
+
+.filter-row-disabled .filter-sublabel {
+    color: #6a6a6a;
+}
+
+.filter-select {
+    background: rgba(0, 0, 0, 0.4);
+    color: #d6d6d6;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 4px;
+    padding: 1px 4px;
+    font-size: 11px;
+    cursor: pointer;
+}
+
+.filter-select:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+/* Route polylines + waypoint dots — colored by coalition in main.js */
+.waypoint-dot {
+    background: transparent;
+    border: none;
+}
+
+#telemetry {
+    position: absolute;
+    bottom: 12px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 1000;
+    background: rgba(20, 20, 20, 0.85);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 8px;
+    padding: 8px 14px;
+    display: flex;
+    gap: 18px;
+    align-items: center;
+    font-size: 12px;
+    line-height: 1.3;
+    user-select: text;
+    max-width: calc(100vw - 24px);
+    flex-wrap: wrap;
+    justify-content: center;
+}
+
+.tlm-cell {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-width: 64px;
+}
+
+.tlm-mgrs {
+    min-width: 160px;
+}
+
+.tlm-label {
+    color: #9aa0a6;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-size: 10px;
+}
+
+.tlm-value {
+    color: #d6d6d6;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+}
+
+#telemetry[data-empty="true"] .tlm-value {
+    color: #5a5a5a;
+}
+
+/* Unit-name cell — always visible. Default look is subtle (matches other
+   tlm-labels). When a unit is explicitly selected the pill turns pale yellow
+   to tie to the sticky-tooltip color and signal "this HUD is showing the
+   selected unit, not own-ship." */
+.tlm-name {
+    color: #d6d6d6;
+    font-weight: 600;
+    font-size: 12px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    min-width: 0;
+    align-self: center;
+}
+.tlm-name.tlm-name-selected {
+    color: #1a1a1a;
+    background: #fff4b8;
+    font-weight: 700;
+    font-size: 13px;
+    padding: 2px 8px;
+}
+#telemetry[data-selected="true"] {
+    border-color: rgba(244, 211, 94, 0.55);
+}
+
+/* Bullseye divIcon — concentric circles + crosshair, colored via inline stroke */
+.bullseye-icon {
+    background: transparent;
+    border: none;
+}
+
+/* Ruler endpoint marker for the click-to-measure tool */
+.ruler-endpoint {
+    background: transparent;
+    border: none;
+}
+
+#measure {
+    position: absolute;
+    bottom: 12px;
+    right: 12px;
+    z-index: 1000;
+    background: rgba(20, 20, 20, 0.85);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 8px;
+    padding: 8px 12px 10px;
+    font-size: 12px;
+    line-height: 1.4;
+    min-width: 200px;
+    user-select: text;
+}
+
+#measure[hidden] {
+    display: none;
+}
+
+.measure-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-bottom: 4px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    margin-bottom: 4px;
+}
+
+.measure-title {
+    color: #9aa0a6;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-size: 10px;
+}
+
+.measure-clear {
+    background: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: 4px;
+    color: #d6d6d6;
+    width: 20px;
+    height: 20px;
+    cursor: pointer;
+    padding: 0;
+    line-height: 1;
+    font-size: 14px;
+}
+
+.measure-clear:hover {
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.measure-row {
+    display: grid;
+    grid-template-columns: minmax(76px, auto) 1fr 22px;
+    align-items: center;
+    gap: 10px;
+    padding: 2px 0;
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    font-variant-numeric: tabular-nums;
+}
+
+.measure-alt-row {
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    margin-top: 4px;
+    padding-top: 6px;
+}
+
+.measure-row .tlm-value {
+    font-weight: 600;
+    text-align: right;
+}
+
+.measure-row[hidden] {
+    display: none;
+}
+
+.measure-copy {
+    background: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: 4px;
+    color: #d6d6d6;
+    width: 22px;
+    height: 22px;
+    cursor: pointer;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.measure-copy:hover {
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.measure-copy.copied {
+    color: #6dd58c;
+    border-color: #6dd58c;
+}
+
+.measure-row:not([data-has-value="true"]) .measure-copy {
+    visibility: hidden;
+}
+
+/* On-map labels for the measure lines */
+.measure-label {
+    background: rgba(20, 20, 20, 0.85);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: 3px;
+    color: #d6d6d6;
+    padding: 2px 6px;
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 11px;
+    white-space: nowrap;
+}
+.measure-label::before {
+    /* kill Leaflet's default tooltip arrow */
+    display: none !important;
+}
+.measure-label-bull {
+    border-color: rgba(91, 141, 239, 0.6);
+}
+.measure-label-self {
+    border-color: rgba(244, 211, 94, 0.6);
+}
+
+/* Permanent waypoint labels — one per route point, colored by coalition. */
+.waypoint-label {
+    background: rgba(20, 20, 20, 0.85);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 3px;
+    padding: 1px 5px;
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 10px;
+    font-weight: 600;
+    white-space: nowrap;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+.waypoint-label::before {
+    /* kill Leaflet's default tooltip arrow */
+    display: none !important;
+}
+.waypoint-label-coal1 { color: #9aa0a6; } /* neutral */
+.waypoint-label-coal2 { color: #e07c7c; } /* red */
+.waypoint-label-coal3 { color: #5b8def; } /* blue */
+.waypoint-label-hidden { display: none; }
+
+/* Permanent F10-mark labels — match DCS's always-on red-tinted captions. */
+.mark-label {
+    background: rgba(20, 20, 20, 0.85);
+    border: 1px solid rgba(255, 59, 48, 0.5);
+    border-radius: 3px;
+    padding: 1px 5px;
+    color: #ff8a82;
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 11px;
+    font-weight: 600;
+    white-space: nowrap;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+.mark-label::before {
+    /* kill Leaflet's default tooltip arrow */
+    display: none !important;
+}
+
+/* Sticky tooltip accent — pale yellow background reads clearly as "pinned"
+   vs the default white hover tooltip. Dark text for contrast. */
+.leaflet-tooltip.mizmap-tooltip-sticky {
+    background: #fff4b8;
+    color: #1a1a1a;
+}
+.leaflet-tooltip.mizmap-tooltip-sticky.leaflet-tooltip-top::before {
+    border-top-color: #fff4b8;
+}
+.leaflet-tooltip.mizmap-tooltip-sticky.leaflet-tooltip-bottom::before {
+    border-bottom-color: #fff4b8;
+}
+.leaflet-tooltip.mizmap-tooltip-sticky.leaflet-tooltip-left::before {
+    border-left-color: #fff4b8;
+}
+.leaflet-tooltip.mizmap-tooltip-sticky.leaflet-tooltip-right::before {
+    border-right-color: #fff4b8;
+}
+
+.status {
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+}
+
+/* ---- Kneeboard mode ----------------------------------------------------
+   Touch- and small-screen-adapted variant of the main map view. Activated
+   automatically on narrow viewports OR touch-primary devices — the same
+   signals that pick out phones, tablets, and the kneeboard form factor.
+   Same map, same units, same data — only chrome adapts. */
+
+.kb-floating {
+    display: none; /* per-button overrides decide where this shows */
+    position: absolute;
+    z-index: 1100;
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: rgba(20, 20, 20, 0.92);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    color: #d6d6d6;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+}
+.kb-floating:active {
+    background: rgba(40, 40, 40, 0.92);
+}
+/* Menu button is now always visible — desktop and tablet both use it to
+   show/hide the filter panel. */
+.kb-menu-btn { display: flex; top: 12px; left: 12px; }
+.kb-measure-btn { bottom: 84px; right: 12px; }
+.kb-measure-btn.kb-armed {
+    background: #f4d35e;
+    color: #1a1a1a;
+    border-color: #f4d35e;
+    box-shadow: 0 0 0 3px rgba(244, 211, 94, 0.25);
+}
+
+@media (max-width: 900px), (pointer: coarse) {
+    /* Measure button is touch-only; desktop has middle-click. */
+    .kb-measure-btn { display: flex; }
+
+    /* Filters panel slides in from the left; hidden by default. The base
+       style's .kb-closed rule is irrelevant here — tablet uses .kb-open in
+       the inverse direction. */
+    #filters {
+        top: 12px;
+        left: 12px;
+        transform: translateX(-130%);
+        transition: transform 180ms ease-out;
+        padding: 12px 14px 14px;
+        /* margin-top: 56px to clear the hamburger is inherited from the
+           base style. */
+        max-height: calc(100vh - 80px);
+        overflow-y: auto;
+        font-size: 14px;
+    }
+    #filters.kb-open {
+        transform: translateX(0);
+    }
+    .filter-row {
+        padding: 6px 0;
+        gap: 12px;
+    }
+    /* Bigger toggle on touch/kneeboard for fingertip targets. */
+    .filter-row .mizmap-switch-track {
+        width: 44px;
+        height: 24px;
+    }
+    .filter-row .mizmap-switch-thumb {
+        width: 20px;
+        height: 20px;
+    }
+    .filter-row input:checked + .mizmap-switch-track .mizmap-switch-thumb {
+        transform: translateX(20px);
+    }
+    .filter-section-label {
+        font-size: 11px;
+        padding: 8px 0 4px;
+    }
+    .filter-select {
+        font-size: 13px;
+        padding: 3px 6px;
+    }
+
+    /* Telemetry HUD is the pilot's primary info — big and always-visible. */
+    #telemetry {
+        font-size: 14px;
+        padding: 10px 16px;
+        gap: 20px;
+    }
+    .tlm-label { font-size: 11px; }
+    .tlm-value { font-size: 20px; }
+    .tlm-cell { min-width: 78px; }
+    .tlm-mgrs { min-width: 200px; }
+
+    /* Measure panel — bigger tap targets; shifted up so it clears the
+       floating MEASURE button at lower-right. */
+    #measure {
+        font-size: 13px;
+        bottom: 140px;
+    }
+    .measure-row {
+        padding: 4px 0;
+    }
+
+    /* Nav panel arrow buttons get an extra bump for fingertip tap targets;
+       positioning is inherited from the base style (top-right). */
+    .nav-wp-arrow {
+        width: 40px;
+        height: 40px;
+        font-size: 24px;
+        border-radius: 6px;
+    }
+    .nav-wp-controls { gap: 8px; }
+    .nav-cell { min-width: 180px; }
+    .nav-value { font-size: 19px; }
+}
+
+/* Phone portrait: tighten the telemetry strip so it doesn't crowd the map. */
+@media (max-width: 480px) {
+    #telemetry {
+        font-size: 12px;
+        gap: 12px;
+        padding: 8px 10px;
+    }
+    .tlm-value { font-size: 17px; }
+    .tlm-cell { min-width: 60px; }
+    .tlm-mgrs { min-width: 150px; }
+}
+
+.status-up {
+    color: #6dd58c;
+}
+
+.status-down {
+    color: #e07c7c;
+}
+
+/* Connection-status footer inside the filter panel. */
+.filter-section-divider {
+    height: 1px;
+    background: rgba(255, 255, 255, 0.12);
+    margin: 10px 0 6px;
+}
+
+.filter-row-status {
+    padding: 2px 0;
+    font-size: 11px;
+    line-height: 1.4;
+    cursor: default;
+    justify-content: space-between;
+}
+
+.filter-row-status .filter-name {
+    color: #9aa0a6;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-size: 10px;
+}
+
+.filter-status-value {
+    font-variant-numeric: tabular-nums;
+}
+
+.filter-row-error {
+    color: #e07c7c;
+    font-size: 11px;
+    max-width: 200px;
+    word-break: break-word;
+    margin-top: 6px;
+    padding-top: 6px;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.filter-row-error[hidden] {
+    display: none;
+}
+
+/* Recenter-on-own-ship button (Leaflet bottom-left control). */
+.mizmap-recenter .mizmap-recenter-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    color: #1b1b1b;
+    text-decoration: none;
+}
+.mizmap-recenter .mizmap-recenter-btn:hover {
+    background-color: #f4f4f4;
+}
+
+/* Navigation-mode floating panel — center-right, vertical layout. The toggle
+   is always visible; the data section underneath is shown only when nav-mode
+   is on. Matches the HUD aesthetic — dark translucent, tabular figures. */
+#navpanel {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 14px;
+    background: rgba(20, 20, 20, 0.85);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 10px;
+    padding: 14px 18px;
+    font-size: 14px;
+    line-height: 1.3;
+    user-select: none;
+}
+
+.nav-data {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    padding-top: 14px;
+}
+
+.nav-data[hidden] {
+    display: none;
+}
+
+.nav-cell {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    min-width: 160px;
+}
+
+.nav-label {
+    color: #9aa0a6;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-size: 11px;
+}
+
+.nav-value {
+    color: #d6d6d6;
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+    font-size: 18px;
+    text-align: right;
+}
+
+/* WP cell hosts prev/next arrow buttons flanking the value. */
+.nav-wp-controls {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.nav-wp-arrow {
+    appearance: none;
+    background: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    border-radius: 5px;
+    color: #d6d6d6;
+    width: 32px;
+    height: 32px;
+    line-height: 1;
+    font-size: 22px;
+    padding: 0;
+    cursor: pointer;
+    user-select: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.nav-wp-arrow:hover {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.3);
+}
+
+.nav-wp-arrow:active {
+    background: rgba(91, 141, 239, 0.25);
+}
+
+/* iOS-style sliding switch — shared between the NAV-mode toggle in the
+   floating nav panel and the per-row toggles in the filter panel. The track
+   + thumb classes are context-agnostic; the wrapper class (.nav-switch or
+   .filter-row) decides the surrounding layout. */
+.nav-switch {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    cursor: pointer;
+    padding: 2px 0;
+}
+
+.nav-switch-label {
+    color: #d6d6d6;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.nav-switch input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+    width: 0;
+    height: 0;
+}
+
+.mizmap-switch-track {
+    position: relative;
+    display: inline-block;
+    flex-shrink: 0;
+    width: 36px;
+    height: 20px;
+    background: #3a3a3a;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: 999px;
+    transition: background-color 160ms ease, border-color 160ms ease;
+}
+
+.mizmap-switch-thumb {
+    position: absolute;
+    top: 1px;
+    left: 1px;
+    width: 16px;
+    height: 16px;
+    background: #f4f4f4;
+    border-radius: 50%;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+    transition: transform 160ms ease, background-color 160ms ease;
+}
+
+input:checked + .mizmap-switch-track {
+    background: #5b8def; /* coalition-blue accent — matches BLUE units / routes */
+    border-color: rgba(91, 141, 239, 0.6);
+}
+
+input:checked + .mizmap-switch-track .mizmap-switch-thumb {
+    transform: translateX(16px);
+}
+
+input:focus-visible + .mizmap-switch-track {
+    outline: 2px solid rgba(91, 141, 239, 0.6);
+    outline-offset: 2px;
+}
+
+/* Nav-panel toggle is the only switch on a 14-px-font surface; give it a
+   slightly larger track for finger comfort + visual weight. Filter-panel
+   rows keep the base 36×20 size to stay compact. */
+.nav-switch .mizmap-switch-track {
+    width: 44px;
+    height: 24px;
+}
+.nav-switch .mizmap-switch-thumb {
+    width: 20px;
+    height: 20px;
+}
+.nav-switch input:checked + .mizmap-switch-track .mizmap-switch-thumb {
+    transform: translateX(20px);
+}

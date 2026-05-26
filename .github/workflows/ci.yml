@@ -1,0 +1,99 @@
+# CI for MizMap.
+#
+# Two jobs:
+#   - tests:  Ubuntu, fast, runs pytest. Gates the build.
+#   - build:  Windows, runs scripts\build_windows.ps1 (PyInstaller + Inno Setup)
+#             and uploads the .exe as an artifact. On a `v*` tag push, also
+#             attaches the installer to the GitHub Release for that tag.
+#
+# Triggers:
+#   - workflow_dispatch: manual button in the Actions tab.
+#   - push to v* tag:    cuts a release with the installer attached.
+#
+# Why no pull_request trigger yet: while the repo is private, Windows runners
+# bill 2x against the personal-account Actions budget. Manual + tag-only keeps
+# usage well inside the free tier. Once the repo is public, add:
+#     pull_request:
+#       paths: [packaging/**, scripts/build_windows.ps1, mizmap/**, pyproject.toml,
+#               uv.lock, .github/workflows/ci.yml]
+# to catch packaging regressions pre-merge.
+
+name: CI
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write  # softprops/action-gh-release needs this to attach assets
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+
+      - run: uv sync --extra dev
+
+      - run: uv run pytest
+
+  build:
+    needs: tests
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+
+      - run: uv sync --extra dev
+
+      # Refuse to build a tagged release whose tag doesn't match the version
+      # baked into mizmap/__init__.py — that would produce a release page named
+      # vX.Y.Z carrying mizmap-setup-A.B.C.exe, which is a confusing footgun.
+      - name: Validate tag matches __version__
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        run: |
+          $init = Get-Content mizmap\__init__.py -Raw
+          if ($init -notmatch '__version__\s*=\s*"([^"]+)"') {
+            throw 'Could not find __version__ in mizmap/__init__.py'
+          }
+          $fileVer = $Matches[1]
+          $tagVer  = '${{ github.ref_name }}'.TrimStart('v')
+          if ($fileVer -ne $tagVer) {
+            throw "Tag $tagVer does not match mizmap/__init__.py __version__=$fileVer. Bump the file or retag."
+          }
+          Write-Host "Version check OK: $fileVer"
+
+      - name: Build installer
+        shell: pwsh
+        run: scripts\build_windows.ps1 -Clean
+
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: mizmap-installer
+          path: packaging/dist/mizmap-setup-*.exe
+          if-no-files-found: error
+
+      - name: Attach installer to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: packaging/dist/mizmap-setup-*.exe
+          fail_on_unmatched_files: true
