@@ -5,7 +5,7 @@ A live, moving-map viewer for **single-player** DCS World missions. Open a brows
 Inspired by [DCS MovingMap](https://movingmap.bergison.com), with one key difference: **you choose what's visible** — MizMap doesn't enforce the mission's in-game F10 view options.
 
 > **Scope:** single-player only. Multiplayer is explicitly out of scope.
-> **Status:** very early development. Phase 0 (scaffolding) — not yet usable.
+> **Status:** pre-1.0 (0.1.0). Usable from source or via the Windows installer; expect rough edges and breaking changes.
 
 ## Architecture
 
