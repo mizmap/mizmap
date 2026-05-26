@@ -20,7 +20,7 @@
 
 name: CI
 
-on:
+"on":
   workflow_dispatch:
   push:
     tags: ['v*']
