@@ -59,6 +59,13 @@ datas = [
     (str(ROOT / "web"), "web"),
     (str(MIZMAP_PKG / "data" / "units.yaml"), "mizmap/data"),
     (str(MIZMAP_PKG / "data" / "mizmap.ico"), "mizmap/data"),
+    # License texts ship inside the bundle so the one-folder artifact is
+    # self-contained (GPL/LGPL/MPL/AGPL all require the terms travel with the
+    # binary). The installer also drops visible copies at the install root —
+    # see packaging/mizmap.iss.
+    (str(ROOT / "LICENSE"), "."),
+    (str(ROOT / "THIRD_PARTY_LICENSES.txt"), "."),
+    (str(ROOT / "LICENSES" / "AGPL-3.0.txt"), "LICENSES"),
 ]
 # proto_gen ships as data so mizmap.proto_gen.__init__'s sys.path hook can
 # find `dcs/...` modules on disk at runtime.

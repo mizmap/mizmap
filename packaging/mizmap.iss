@@ -41,6 +41,9 @@ WizardStyle=modern
 UninstallDisplayName={#AppName} {#AppVersion}
 UninstallDisplayIcon={app}\{#AppExeName}
 SetupIconFile=..\mizmap\data\mizmap.ico
+; Show the GPL during install (informational — GPL grants rights, it isn't a
+; EULA, but the wizard page is the conventional place to surface it).
+LicenseFile=..\LICENSE
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
@@ -55,6 +58,11 @@ Name: "desktopicon"; Description: "Create a &desktop shortcut"; \
 ; units.yaml, proto_gen/, etc.). createallsubdirs preserves the layout the
 ; frozen runtime expects.
 Source: "{#SourceDist}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+; License texts at the install root, sourced from the repo (not the bundle) so
+; they're easy to find post-install and the binary ships with its terms.
+Source: "..\LICENSE"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\THIRD_PARTY_LICENSES.txt"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\LICENSES\AGPL-3.0.txt"; DestDir: "{app}\LICENSES"; Flags: ignoreversion
 
 [Icons]
 Name: "{group}\{#AppName}"; Filename: "{app}\{#AppExeName}"

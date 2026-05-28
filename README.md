@@ -88,3 +88,13 @@ scripts\build_windows.ps1 -Clean
 ```
 
 Two stages — PyInstaller produces `packaging\dist\mizmap\` (one-folder bundle, ~65 MB), then Inno Setup wraps it as `packaging\dist\mizmap-setup-<version>.exe` (~26 MB compressed). See [packaging/mizmap.spec](packaging/mizmap.spec) and [packaging/mizmap.iss](packaging/mizmap.iss).
+
+## License
+
+MizMap is free software, licensed under the **GNU General Public License v3.0 or later** (GPL-3.0-or-later). See [LICENSE](LICENSE) for the full text.
+
+Copyright (C) 2026 the MizMap authors.
+
+- The vendored DCS-gRPC protobuf definitions (`proto/`, `mizmap/proto_gen/`) are derived from [DCS-gRPC/rust-server](https://github.com/DCS-gRPC/rust-server) and remain under **AGPL-3.0** ([LICENSES/AGPL-3.0.txt](LICENSES/AGPL-3.0.txt)); GPL-3.0 §13 expressly permits the combination.
+- Bundled third-party libraries keep their own licenses — see [THIRD_PARTY_LICENSES.txt](THIRD_PARTY_LICENSES.txt) (regenerate with `scripts/gen_third_party_licenses.py` after changing dependencies).
+- Map tiles © [OpenTopoMap](https://opentopomap.org) (CC-BY-SA); map data © [OpenStreetMap](https://www.openstreetmap.org/copyright) contributors (ODbL).
