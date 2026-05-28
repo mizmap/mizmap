@@ -196,6 +196,55 @@ html, body {
     border-color: rgba(244, 211, 94, 0.55);
 }
 
+/* Live cursor MGRS readout — small top-center pill. Hover-only (wired by JS on
+   fine-pointer devices). pointer-events:none so it never intercepts the map. */
+#cursorReadout {
+    position: absolute;
+    top: 12px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 1000;
+    background: rgba(20, 20, 20, 0.85);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 8px;
+    padding: 5px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    font-size: 12px;
+    line-height: 1.35;
+    user-select: none;
+    pointer-events: none;
+    white-space: nowrap;
+}
+
+#cursorReadout[hidden] {
+    display: none;
+}
+
+.cursor-readout-row {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+}
+
+.cursor-readout-label {
+    color: #9aa0a6;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-size: 10px;
+    min-width: 30px;
+}
+
+.cursor-readout-value {
+    color: #d6d6d6;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+}
+
 /* Bullseye divIcon — concentric circles + crosshair, colored via inline stroke */
 .bullseye-icon {
     background: transparent;
@@ -272,7 +321,9 @@ html, body {
     font-variant-numeric: tabular-nums;
 }
 
-.measure-alt-row {
+/* First row of the "target point" group (MGRS + Alt) — carries the separator
+   that divides it from the bearing/range rows above. */
+.measure-point-row {
     border-top: 1px solid rgba(255, 255, 255, 0.08);
     margin-top: 4px;
     padding-top: 6px;

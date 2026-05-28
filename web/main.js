@@ -36,8 +36,16 @@ const measureSelfOutRowEl = document.getElementById("measureSelfOutRow");
 const measureSelfInEl = document.getElementById("measureSelfIn");
 const measureSelfInRowEl = document.getElementById("measureSelfInRow");
 const measureAltEl = document.getElementById("measureAlt");
+const measureGridEl = document.getElementById("measureGrid");
+const measureGridRowEl = document.getElementById("measureGridRow");
+const measureLatLonEl = document.getElementById("measureLatLon");
+const measureLatLonRowEl = document.getElementById("measureLatLonRow");
 const measureClearBtn = document.getElementById("measureClear");
 const MEASURE_SELF_COLOR = "#f4d35e";
+
+const cursorReadoutEl = document.getElementById("cursorReadout");
+const cursorMgrsEl = document.getElementById("cursorMgrs");
+const cursorLatLonEl = document.getElementById("cursorLatLon");
 
 const CAUCASUS_CENTER = [43.0, 40.8]; // ~midpoint of the DCS Caucasus theater
 // Default zoom when auto-centering on first sight of the player's own-ship.
@@ -706,6 +714,29 @@ function formatMgrs(lat, lon) {
     } catch {
         return "—";
     }
+}
+
+// Degrees-decimal-minutes — the format pilots enter into the jet (vs the HUD's
+// plain decimal degrees). `degPad` zero-pads the degree field (2 for lat, 3 for
+// lon) for tabular alignment. The carry guard handles minutes rounding up to
+// 60.000 (e.g. 59.9997') so it rolls into the next degree rather than printing
+// "60.000'".
+function formatDdmPart(coord, posHemi, negHemi, degPad) {
+    const hemi = coord >= 0 ? posHemi : negHemi;
+    const abs = Math.abs(coord);
+    let deg = Math.floor(abs);
+    let min = (abs - deg) * 60;
+    if (Math.round(min * 1000) >= 60000) {
+        deg += 1;
+        min = 0;
+    }
+    const degStr = String(deg).padStart(degPad, "0");
+    const minStr = min.toFixed(3).padStart(6, "0");
+    return `${hemi}${degStr}°${minStr}'`;
+}
+
+function formatLatLonDdm(lat, lon) {
+    return `${formatDdmPart(lat, "N", "S", 2)} ${formatDdmPart(lon, "E", "W", 3)}`;
 }
 
 function refreshTelemetry() {
@@ -1599,6 +1630,10 @@ function clearMeasure() {
     }
     measureEl.hidden = true;
     measureAltEl.textContent = "…";
+    measureGridEl.textContent = "—";
+    measureGridRowEl.dataset.hasValue = "false";
+    measureLatLonEl.textContent = "—";
+    measureLatLonRowEl.dataset.hasValue = "false";
     measureBullEl.textContent = "—";
     measureSelfOutEl.textContent = "—";
     measureSelfInEl.textContent = "—";
@@ -1818,6 +1853,13 @@ function handleMapClick(ev) {
     };
     measureEl.hidden = false;
     measureAltEl.textContent = "…";
+    // MGRS is a pure function of the clicked point — set once here rather than
+    // recomputing in refreshMeasureReadout (which re-runs on every player move).
+    const grid = formatMgrs(lat, lon);
+    measureGridEl.textContent = grid;
+    measureGridRowEl.dataset.hasValue = grid !== "—" ? "true" : "false";
+    measureLatLonEl.textContent = formatLatLonDdm(lat, lon);
+    measureLatLonRowEl.dataset.hasValue = "true";
     refreshMeasureReadout();
     fetchElevation(lat, lon, reqId);
     fetchClickDeclination(lat, lon, reqId);
@@ -1827,6 +1869,14 @@ function handleMapClick(ev) {
 
 function copyTextFor(target) {
     if (!measureState) return null;
+    if (target === "grid") {
+        const g = measureGridEl.textContent;
+        return g && g !== "—" ? g : null;
+    }
+    if (target === "latlon") {
+        const v = measureLatLonEl.textContent;
+        return v && v !== "—" ? v : null;
+    }
     const altFt =
         typeof measureState.elevM === "number"
             ? Math.round(measureState.elevM * M_TO_FT)
@@ -2020,6 +2070,20 @@ function connectWebSocket() {
         L.DomEvent.preventDefault(ev.originalEvent);
         clearMeasure();
     });
+    // Live MGRS readout of the point under the cursor. Hover-only — touch has
+    // no hover (and a stray tap-driven mousemove would leave the pill stuck on),
+    // so wire it only on fine-pointer/hover devices. The measure panel's MGRS
+    // row is the touch equivalent.
+    if (window.matchMedia("(hover: hover) and (pointer: fine)").matches) {
+        map.on("mousemove", (ev) => {
+            cursorMgrsEl.textContent = formatMgrs(ev.latlng.lat, ev.latlng.lng);
+            cursorLatLonEl.textContent = formatLatLonDdm(ev.latlng.lat, ev.latlng.lng);
+            cursorReadoutEl.hidden = false;
+        });
+        map.on("mouseout", () => {
+            cursorReadoutEl.hidden = true;
+        });
+    }
     measureClearBtn.addEventListener("click", clearMeasure);
     for (const btn of document.querySelectorAll(".measure-copy")) {
         btn.addEventListener("click", handleCopyClick);

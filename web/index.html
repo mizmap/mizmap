@@ -16,6 +16,20 @@
 <body>
     <div id="map"></div>
 
+    <!-- Live MGRS readout of the point under the cursor. Desktop/hover only;
+         JS leaves it hidden on touch (no hover) where the measure panel's
+         MGRS row covers the same need. -->
+    <div id="cursorReadout" hidden>
+        <div class="cursor-readout-row">
+            <span class="cursor-readout-label">GRID</span>
+            <span class="cursor-readout-value" id="cursorMgrs">—</span>
+        </div>
+        <div class="cursor-readout-row">
+            <span class="cursor-readout-label">L/L</span>
+            <span class="cursor-readout-value" id="cursorLatLon">—</span>
+        </div>
+    </div>
+
     <!-- Kneeboard-only controls. CSS hides these on the main view. -->
     <button type="button" id="kbMenuBtn" class="kb-floating kb-menu-btn" aria-label="Toggle filters">
         <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg>
@@ -116,7 +130,21 @@
                 <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><rect x="5" y="5" width="9" height="9" rx="1"/><path d="M3 11V3a1 1 0 0 1 1-1h8"/></svg>
             </button>
         </div>
-        <div class="measure-row measure-alt-row">
+        <div class="measure-row measure-point-row" id="measureGridRow" data-has-value="false">
+            <span class="tlm-label">MGRS</span>
+            <span class="tlm-value" id="measureGrid">—</span>
+            <button type="button" class="measure-copy" data-copy="grid" title="Copy" aria-label="Copy MGRS grid">
+                <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><rect x="5" y="5" width="9" height="9" rx="1"/><path d="M3 11V3a1 1 0 0 1 1-1h8"/></svg>
+            </button>
+        </div>
+        <div class="measure-row" id="measureLatLonRow" data-has-value="false">
+            <span class="tlm-label">L/L</span>
+            <span class="tlm-value" id="measureLatLon">—</span>
+            <button type="button" class="measure-copy" data-copy="latlon" title="Copy" aria-label="Copy lat/long">
+                <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><rect x="5" y="5" width="9" height="9" rx="1"/><path d="M3 11V3a1 1 0 0 1 1-1h8"/></svg>
+            </button>
+        </div>
+        <div class="measure-row">
             <span class="tlm-label">Alt</span>
             <span class="tlm-value" id="measureAlt">…</span>
         </div>
