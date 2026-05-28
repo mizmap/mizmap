@@ -10,11 +10,11 @@ See [README.md](README.md) for architecture diagram and run instructions.
 
 ## Catch up — read in this order
 
-The journals contain the decision history that code alone can't re-derive. They are authoritative for **why**; the code is authoritative for **what**.
+The journals, **where present**, contain decision history that code alone can't re-derive — authoritative for **why**; the code is authoritative for **what**. Note `.journal/` is deliberately git-ignored and was *not* published with this repo (see Working rules below), so on a fresh clone it's empty or absent. Read whatever is there locally; otherwise this file + README + the code are enough.
 
-1. **Latest entry in [`.journal/`](.journal/)** — current state, what just shipped, what's next. Together with this file, enough for almost every session.
+1. **Latest entry in [`.journal/`](.journal/)** — if present: current state, what just shipped, what's next.
 2. [README.md](README.md) — quickstart + architecture.
-3. Earlier entries in `.journal/` — archaeology. Open when you need the rationale behind a specific decision that's surprising or stale.
+3. Earlier entries in `.journal/` — archaeology, if present. Open for the rationale behind a surprising or stale decision.
 4. [proto/UPSTREAM.md](proto/UPSTREAM.md) — vendored DCS-gRPC version.
 
 ## Locked decisions (don't drift without explicit user agreement)
@@ -73,10 +73,10 @@ The user's global rules (`~/.claude/CLAUDE.md`) still apply: propose-before-code
 
 Additions for this project:
 
-- **Phases are the unit of work.** Each phase opens with a written plan in chat (concrete deliverables, scope, smoke-test acceptance), then code, then a journal entry. The Phase 0 and Phase 1 journals are the format reference.
+- **Phases are the unit of work.** Each phase opens with a written plan in chat (concrete deliverables, scope, smoke-test acceptance), then code, then a journal entry. Match the format of whatever earlier entries exist locally in `.journal/` (they may be absent on a fresh clone — see Catch up).
 - **Tests count toward "done"** for backend changes that touch logic (`state.py`, `sidc.py`, future mission parsing). Pure plumbing changes (server wiring, frontend) don't need new tests.
 - **Smoke-test before commit.** Standard recipe: `uv run python -m mizmap.dev.mock_server &` + `uv run mizmap serve &`, then inspect `/api/health` and the WS feed. Redirect output to a log file (`/tmp/mizmap-*.log` on Mac/Linux, `%TEMP%\mizmap\` on Windows).
-- **`.journal/` is tracked in this repo** (via an override of the user's global ignore — see `.gitignore`). That's deliberate; do not "clean up" the ignore.
+- **`.journal/` is deliberately git-ignored** (see `.gitignore`) — decision history is kept **local to the maintainer's machine and intentionally unpublished**. This public repo was seeded fresh from a private one, dropping the old git history and leaving the journals behind on purpose. Keep writing journal entries (they're the local "why" record), but don't add `.journal/` to version control, and don't be surprised when a fresh clone has none.
 
 ## Operational gotchas
 
@@ -101,8 +101,8 @@ Additions for this project:
 
 ## Environment & memory notes
 
-- The user's per-project memory directory (`~/.claude/projects/.../memory/`) is **machine-local** and does not sync. Anything that needs to travel between Mac and Windows must live in this repo — CLAUDE.md, journals, or code.
-- Conversation transcripts are also machine-local. The journal entries are the canonical record of what happened.
+- The user's per-project memory directory (`~/.claude/projects/.../memory/`) is **machine-local** and does not sync. Anything that needs to travel between machines must live in this repo — CLAUDE.md or code. (Journals do **not** travel: they're git-ignored — see Working rules.)
+- Conversation transcripts and journals are both machine-local. Journals are the maintainer's local "why" record where they exist; the **cross-machine** record of what happened is commit messages + this file.
 
 ## When stuck or about to make a non-trivial decision
 
