@@ -8,12 +8,11 @@ backoff.
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 from collections.abc import Awaitable, Callable
 
 import grpc
-
-import json
 
 import mizmap.proto_gen  # noqa: F401  -- sets sys.path for generated imports
 from dcs.coalition.v0 import coalition_pb2, coalition_pb2_grpc
@@ -22,9 +21,11 @@ from dcs.custom.v0 import custom_pb2, custom_pb2_grpc
 from dcs.mission.v0 import mission_pb2, mission_pb2_grpc
 from dcs.world.v0 import world_pb2, world_pb2_grpc
 
+from mizmap.airbase import Airbase, airbase_from_proto
 from mizmap.bullseye import Bullseye
 from mizmap.marks import Mark, mark_from_event, mark_from_proto
 from mizmap.routes import LUA_SNIPPET, GroupRoute, parse_eval_json
+from mizmap.runways import RUNWAYS_LUA_SNIPPET, Runway, parse_runways_json
 
 log = logging.getLogger(__name__)
 
@@ -137,7 +138,7 @@ class DcsGrpcClient:
                     await self._on_disconnect()
                 try:
                     await asyncio.wait_for(self._stop.wait(), timeout=backoff)
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     pass
                 backoff = min(backoff * 2, self._backoff_max)
             finally:
@@ -243,6 +244,86 @@ class DcsGrpcClient:
         marks = [mark_from_proto(p) for p in resp.mark_panels]
         log.info("fetched %d marks", len(marks))
         return marks
+
+    async def fetch_runways(self, timeout: float = 5.0) -> list[Runway] | None:
+        """Pull every airbase's runways via CustomService.Eval.
+
+        Like `fetch_routes`, this is gated behind `evalEnabled = true`; without
+        it the rust-server replies FAILED_PRECONDITION and we log + return None.
+        Returns `None` on RPC failure (so callers retry), `[]` on a successful
+        call with no runways. Runways are static for the mission's lifetime.
+        """
+        channel = self._channel
+        if channel is None:
+            log.debug("fetch_runways called with no live channel")
+            return None
+        try:
+            stub = custom_pb2_grpc.CustomServiceStub(channel)
+            resp = await asyncio.wait_for(
+                stub.Eval(custom_pb2.EvalRequest(lua=RUNWAYS_LUA_SNIPPET)),
+                timeout=timeout,
+            )
+        except grpc.aio.AioRpcError as exc:
+            log.warning("Eval(runways) failed: %s — %s", exc.code(), exc.details())
+            return None
+        except Exception as exc:  # noqa: BLE001
+            log.warning("fetch_runways error: %s: %s", type(exc).__name__, exc)
+            return None
+        runways = parse_runways_json(resp.json)
+        log.info("fetched %d runways", len(runways))
+        return runways
+
+    async def fetch_theatre(self, timeout: float = 3.0) -> str | None:
+        """Return the loaded theatre/map name via WorldService.GetTheatre, or None.
+
+        Standard RPC, no Eval. Used to pick the right terrain Beacons.lua for the
+        Navaids layer.
+        """
+        channel = self._channel
+        if channel is None:
+            return None
+        try:
+            stub = world_pb2_grpc.WorldServiceStub(channel)
+            resp = await asyncio.wait_for(
+                stub.GetTheatre(world_pb2.GetTheatreRequest()), timeout=timeout
+            )
+        except grpc.aio.AioRpcError as exc:
+            log.warning("GetTheatre failed: %s — %s", exc.code(), exc.details())
+            return None
+        except Exception as exc:  # noqa: BLE001
+            log.warning("fetch_theatre error: %s: %s", type(exc).__name__, exc)
+            return None
+        return resp.theatre or None
+
+    async def fetch_airbases(self, timeout: float = 3.0) -> list[Airbase] | None:
+        """Pull all airbases via WorldService.GetAirbases.
+
+        No Eval dependency — a standard RPC. Returns `None` on transient
+        failure (channel down, timeout) so callers can retry, `[]` on a
+        successful call with no airbases. Coalition can flip mid-mission on
+        capture; we treat the set as static and re-snapshot on (re)connect +
+        mission change rather than chasing capture events.
+        """
+        channel = self._channel
+        if channel is None:
+            return None
+        try:
+            stub = world_pb2_grpc.WorldServiceStub(channel)
+            resp = await asyncio.wait_for(
+                stub.GetAirbases(
+                    world_pb2.GetAirbasesRequest(coalition=common_pb2.COALITION_ALL)
+                ),
+                timeout=timeout,
+            )
+        except grpc.aio.AioRpcError as exc:
+            log.warning("GetAirbases failed: %s — %s", exc.code(), exc.details())
+            return None
+        except Exception as exc:  # noqa: BLE001
+            log.warning("fetch_airbases error: %s: %s", type(exc).__name__, exc)
+            return None
+        airbases = [airbase_from_proto(a) for a in resp.airbases]
+        log.info("fetched %d airbases", len(airbases))
+        return airbases
 
     async def fetch_elevation(self, lat: float, lon: float, timeout: float = 3.0) -> float | None:
         """Return terrain elevation (m MSL) at a lat/lon, or None on failure.

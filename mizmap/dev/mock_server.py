@@ -10,6 +10,7 @@ Run with:  `python -m mizmap.dev.mock_server`
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import math
 import time
@@ -19,6 +20,7 @@ import grpc
 
 import mizmap.proto_gen  # noqa: F401  -- sets sys.path for generated imports
 from dcs.common.v0 import common_pb2
+from dcs.custom.v0 import custom_pb2, custom_pb2_grpc
 from dcs.mission.v0 import mission_pb2, mission_pb2_grpc
 from dcs.world.v0 import world_pb2, world_pb2_grpc
 
@@ -228,7 +230,45 @@ class MockMissionService(mission_pb2_grpc.MissionServiceServicer):
 
 
 class MockWorldService(world_pb2_grpc.WorldServiceServicer):
-    """Just enough to satisfy `WorldService.GetMarkPanels` from the real client."""
+    """Just enough to satisfy `WorldService.GetMarkPanels` + `GetAirbases`."""
+
+    # A handful of Caucasus airbases near the unit scenario: two airfields, a
+    # FARP, and a carrier. The carrier (SHIP) is deliberately co-located with
+    # the moving cruiser unit so the frontend's skip-ships dedup is exercisable.
+    _AIRBASES = [
+        common_pb2.Airbase(
+            name="Sochi-Adler",
+            callsign="Sochi",
+            coalition=common_pb2.COALITION_BLUE,
+            position=common_pb2.Position(lat=43.449, lon=39.956, alt=10.0),
+            category=common_pb2.AIRBASE_CATEGORY_AIRDROME,
+            display_name="Sochi-Adler",
+        ),
+        common_pb2.Airbase(
+            name="Gudauta",
+            callsign="Gudauta",
+            coalition=common_pb2.COALITION_RED,
+            position=common_pb2.Position(lat=43.105, lon=40.583, alt=20.0),
+            category=common_pb2.AIRBASE_CATEGORY_AIRDROME,
+            display_name="Gudauta",
+        ),
+        common_pb2.Airbase(
+            name="FARP London",
+            callsign="London",
+            coalition=common_pb2.COALITION_BLUE,
+            position=common_pb2.Position(lat=43.30, lon=39.85, alt=15.0),
+            category=common_pb2.AIRBASE_CATEGORY_HELIPAD,
+            display_name="FARP London",
+        ),
+        common_pb2.Airbase(
+            name="CVN-71 Roosevelt",
+            callsign="Roosevelt",
+            coalition=common_pb2.COALITION_BLUE,
+            position=common_pb2.Position(lat=43.20, lon=39.40, alt=0.0),
+            category=common_pb2.AIRBASE_CATEGORY_SHIP,
+            display_name="CVN-71 Roosevelt",
+        ),
+    ]
 
     def __init__(self) -> None:
         # Two static marks: one campaign-style (visible to all), one
@@ -262,11 +302,66 @@ class MockWorldService(world_pb2_grpc.WorldServiceServicer):
     ) -> world_pb2.GetMarkPanelsResponse:
         return world_pb2.GetMarkPanelsResponse(mark_panels=self._marks)
 
+    async def GetAirbases(
+        self,
+        request: world_pb2.GetAirbasesRequest,
+        context: grpc.aio.ServicerContext,
+    ) -> world_pb2.GetAirbasesResponse:
+        # Real server filters by request.coalition; the mock returns all.
+        return world_pb2.GetAirbasesResponse(airbases=self._AIRBASES)
+
+    async def GetTheatre(
+        self,
+        request: world_pb2.GetTheatreRequest,
+        context: grpc.aio.ServicerContext,
+    ) -> world_pb2.GetTheatreResponse:
+        # The mock scenario is in the Caucasus. On a box with DCS installed, the
+        # Navaids layer then parses the real Caucasus Beacons.lua; elsewhere
+        # (no DCS) navaids just stay empty.
+        return world_pb2.GetTheatreResponse(theatre="Caucasus")
+
+
+class MockCustomService(custom_pb2_grpc.CustomServiceServicer):
+    """Minimal Eval — serves canned runway JSON for the getRunways snippet.
+
+    The real client uses `CustomService.Eval` for routes, elevation AND runways.
+    Only runways are mocked here (so the layer renders without real DCS); every
+    other Eval returns an empty JSON list, leaving routes/elevation empty exactly
+    as before this servicer existed. `course` is pre-negated to mirror the real
+    DCS sign convention (`parse_runways_json` negates again), so the rendered
+    headings come out as commented.
+    """
+
+    # course = -radians(desired_heading); parse negates → desired heading.
+    _RUNWAYS_JSON = json.dumps(
+        [
+            {
+                "airbase_name": "Sochi-Adler", "name": 6, "course": -math.radians(60),
+                "length": 2500, "width": 45, "lat": 43.449, "lon": 39.956,
+            },
+            {
+                "airbase_name": "Gudauta", "name": 33, "course": -math.radians(330),
+                "length": 2000, "width": 40, "lat": 43.105, "lon": 40.583,
+            },
+        ]
+    )
+
+    async def Eval(
+        self,
+        request: custom_pb2.EvalRequest,
+        context: grpc.aio.ServicerContext,
+    ) -> custom_pb2.EvalResponse:
+        if "getRunways" in (request.lua or ""):
+            return custom_pb2.EvalResponse(json=self._RUNWAYS_JSON)
+        # Routes / elevation aren't mocked — empty list keeps them blank.
+        return custom_pb2.EvalResponse(json="[]")
+
 
 async def _serve(host: str, port: int) -> None:
     server = grpc.aio.server()
     mission_pb2_grpc.add_MissionServiceServicer_to_server(MockMissionService(), server)
     world_pb2_grpc.add_WorldServiceServicer_to_server(MockWorldService(), server)
+    custom_pb2_grpc.add_CustomServiceServicer_to_server(MockCustomService(), server)
     bind = f"{host}:{port}"
     server.add_insecure_port(bind)
     await server.start()

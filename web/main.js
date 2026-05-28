@@ -88,7 +88,30 @@ const NAV_ETA_MIN_SPEED_MS = 5.0;
 const unitsById = new Map(); // id -> { marker, data, visible }
 const routesByGroupId = new Map(); // group_id -> { layer: L.LayerGroup, data, visible }
 const bullseyesByCoalition = new Map(); // coalition -> { marker, data, visible }
+const airbasesByName = new Map(); // name -> { layer: L.LayerGroup, data, visible }
+const runwaysByKey = new Map(); // key -> { layer: L.LayerGroup, data, visible }
+const navaidsByKey = new Map(); // key -> { marker, data, visible }
 const marksById = new Map(); // id -> { marker, data, visible }
+
+// DCS AirbaseCategory enum. Ships (carriers/LHAs) already render as live units
+// via StreamUnits, so the airbase layer skips them to avoid double symbols.
+const AIRBASE_CATEGORY_SHIP = 3;
+const AIRBASE_CAT_NAMES = { 1: "Airfield", 2: "FARP", 3: "Ship" };
+// Runways are coalition-neutral terrain — light grey, ride the Airbases toggle.
+const RUNWAY_COLOR = "#e6e6e6";
+const RUNWAY_WEIGHT = 4;
+// Navaids — bright cyan FILLED glyphs with a white halo + dark outline. Chart
+// magenta was unreadable against DCS terrain (reddish mountains, purple admin
+// boundaries, red airport hatching all clash); cyan is the complementary pop
+// and stays distinct from the coalition colors. Filled (not hollow) + haloed so
+// the small glyphs read on any base-map tone. Own pane below the airbase markers
+// so a co-located beacon reads as a separate chart layer.
+const NAVAID_FILL = "#19dfe6"; // bright cyan
+const NAVAID_OUTLINE = "#06343a"; // dark edge for definition on light terrain
+const NAVAID_HALO = "#ffffff"; // ring for separation on busy/dark areas
+const NAVAID_SIZE = 20;
+const NAVAIDS_PANE = "dcmNavaidsPane";
+const NAVAIDS_PANE_Z = 450; // above tiles/runways (overlayPane 400), below markers (600)
 
 // F10 map marks rendering — match DCS's small red-bordered circles. Fixed
 // pixel size (circleMarker, not circle) so they don't scale with zoom.
@@ -130,11 +153,11 @@ const PLAYER_DEC_REFRESH_MS = 30000;
 // All-on is the default and produces an empty hash for a clean URL.
 const HASH_COAL = { 1: "n", 2: "r", 3: "b" }; // DCS Coalition enum
 const HASH_CAT = { 1: "a", 2: "h", 3: "g", 4: "s", 5: "t" }; // GroupCategory enum
-const HASH_LAYER = { routes: "r", bullseyes: "b", marks: "k", measure: "m", threats: "t", vectors: "v", trails: "l" };
+const HASH_LAYER = { routes: "r", bullseyes: "b", airbases: "f", navaids: "n", marks: "k", measure: "m", threats: "t", vectors: "v", trails: "l" };
 const FILTERS = {
     coalition: { 1: true, 2: true, 3: true },
     category: { 1: true, 2: true, 3: true, 4: true, 5: true },
-    layers: { routes: true, bullseyes: true, marks: true, measure: true, threats: true, vectors: true, trails: true },
+    layers: { routes: true, bullseyes: true, airbases: true, navaids: true, marks: true, measure: true, threats: true, vectors: true, trails: true },
     trailLengthSec: TRAIL_LENGTH_DEFAULT_SEC,
 };
 const N_LAYER_FLAGS = Object.keys(HASH_LAYER).length;
@@ -189,6 +212,14 @@ function shouldShowMark(m) {
     if (!player) return true;
     if (m.coalition !== null && m.coalition !== player.coalition) return false;
     return true;
+}
+
+function shouldShowAirbase(a) {
+    // Carriers/LHAs (ship category) already render as live units — skip them
+    // here. Airfields/FARPs track the coalition filter like routes/bullseyes.
+    if (FILTERS.layers.airbases !== true) return false;
+    if (a.category === AIRBASE_CATEGORY_SHIP) return false;
+    return FILTERS.coalition[a.coalition] === true;
 }
 
 function shouldShowThreat(u) {
@@ -332,6 +363,9 @@ function wireFilterCheckboxes() {
             applyVisibilityAll();
             applyRouteVisibilityAll();
             applyBullseyeVisibilityAll();
+            applyAirbaseVisibilityAll();
+            applyRunwayVisibilityAll();
+            applyNavaidVisibilityAll();
             applyMarkVisibilityAll();
             applyThreatVisibilityAll();
             applyVectorVisibilityAll();
@@ -387,6 +421,8 @@ function buildMap(config) {
 
     m.createPane(MARKS_PANE).style.zIndex = String(MARKS_PANE_Z);
     marksRenderer = L.svg({ pane: MARKS_PANE });
+    // Navaid glyphs sit on their own pane below the airbase/unit markers.
+    m.createPane(NAVAIDS_PANE).style.zIndex = String(NAVAIDS_PANE_Z);
 
     // Persist pan/zoom into the URL hash so a refresh keeps the same view.
     m.on("moveend", encodeHash);
@@ -1379,6 +1415,269 @@ function applyBullseyesSnapshot(bullseyes) {
     refreshMeasureReadout();
 }
 
+// --- airbases ---------------------------------------------------------------
+
+function escapeHtml(s) {
+    return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+function tooltipForAirbase(a) {
+    const altFt = Math.round(a.alt * M_TO_FT).toLocaleString("en-US");
+    const cat = AIRBASE_CAT_NAMES[a.category] || "Airbase";
+    const coal = COAL_NAMES[a.coalition] || "?";
+    const name = a.display_name || a.name || a.callsign || "Airbase";
+    return `<b>${escapeHtml(name)}</b><br>${cat} · ${coal}<br>elev ${altFt} ft`;
+}
+
+function buildAirbaseLayer(a) {
+    const group = L.layerGroup();
+    const marker = L.marker([a.lat, a.lon], {
+        icon: buildSymbolIcon(a.sidc),
+        keyboard: false,
+        interactive: true,
+    });
+    marker.bindTooltip(tooltipForAirbase(a), { direction: "top", offset: [0, -10] });
+    // Click pins the detail tooltip (same affordance as bullseyes).
+    marker.on("click", toggleStickyTooltip);
+    marker.addTo(group);
+    // Always-on name label to the right of the symbol — matches DCS's F10 map.
+    const name = (a.display_name || a.name || a.callsign || "").trim();
+    if (name) {
+        L.tooltip({
+            permanent: true,
+            direction: "right",
+            offset: [16, 0],
+            className: `airbase-label airbase-label-coal${a.coalition}`,
+            opacity: 1,
+            interactive: false,
+        })
+            .setLatLng([a.lat, a.lon])
+            .setContent(escapeHtml(name))
+            .addTo(group);
+    }
+    return group;
+}
+
+function applyAirbaseVisibility(entry) {
+    const show = shouldShowAirbase(entry.data);
+    if (show && !entry.visible) {
+        entry.layer.addTo(map);
+        entry.visible = true;
+    } else if (!show && entry.visible) {
+        entry.layer.remove();
+        entry.visible = false;
+    }
+}
+
+function applyAirbaseVisibilityAll() {
+    for (const entry of airbasesByName.values()) applyAirbaseVisibility(entry);
+}
+
+function applyAirbasesSnapshot(airbases) {
+    // Airbases are static for the mission — full replace each snapshot.
+    for (const { layer, visible } of airbasesByName.values()) {
+        if (visible) layer.remove();
+    }
+    airbasesByName.clear();
+    airbases.forEach((a, i) => {
+        const layer = buildAirbaseLayer(a);
+        // Names are unique within a theatre; fall back to index for the rare
+        // unnamed airbase so entries never collide.
+        const key = (a.name && a.name.trim()) || `#${i}`;
+        const entry = { layer, data: a, visible: false };
+        airbasesByName.set(key, entry);
+        applyAirbaseVisibility(entry);
+    });
+}
+
+// --- runways ----------------------------------------------------------------
+
+// Pair a runway designator with its reciprocal, e.g. "06" → "06/24". DCS gives
+// only one end's number; the other is 180° away (designator ±18, wrapped 1–36).
+function runwayDesignatorPair(name) {
+    const n = parseInt(name, 10);
+    if (!Number.isFinite(n) || n < 1 || n > 36) return name || "RWY";
+    const recip = ((n + 18 - 1) % 36) + 1;
+    const pad = (x) => String(x).padStart(2, "0");
+    return `${pad(Math.min(n, recip))}/${pad(Math.max(n, recip))}`;
+}
+
+function tooltipForRunway(rw) {
+    const hdgT = (Math.round((rw.course * 180) / Math.PI) % 360 + 360) % 360;
+    const lenM = Math.round(rw.length_m);
+    const lenFt = Math.round(rw.length_m * M_TO_FT).toLocaleString("en-US");
+    const ab = rw.airbase_name ? escapeHtml(rw.airbase_name) + " " : "";
+    return `<b>${ab}RWY ${runwayDesignatorPair(rw.name)}</b><br>${String(hdgT).padStart(3, "0")}°T · ${lenFt} ft (${lenM} m)`;
+}
+
+function buildRunwayLayer(rw) {
+    const group = L.layerGroup();
+    const half = rw.length_m / 2;
+    const a = projectLatLon(rw.lat, rw.lon, rw.course, half);
+    const b = projectLatLon(rw.lat, rw.lon, rw.course + Math.PI, half);
+    // Cased line: dark underlay (non-interactive) + light interactive overlay
+    // carrying the tooltip. Drawn on the default overlay pane, below the airbase
+    // symbol markers (markerPane), so the symbol sits atop its runways.
+    L.polyline([a, b], {
+        color: CASING_COLOR,
+        weight: RUNWAY_WEIGHT + 3,
+        opacity: CASING_OPACITY,
+        interactive: false,
+    }).addTo(group);
+    const overlay = L.polyline([a, b], {
+        color: RUNWAY_COLOR,
+        weight: RUNWAY_WEIGHT,
+        opacity: 0.95,
+    });
+    overlay.bindTooltip(tooltipForRunway(rw), { direction: "top", sticky: true });
+    overlay.on("click", toggleStickyTooltip);
+    overlay.addTo(group);
+    return group;
+}
+
+// Runways ride the Airbases layer toggle (they're part of the airbase picture)
+// and are coalition-independent — they're physical terrain, not owned by a side.
+function shouldShowRunway() {
+    return FILTERS.layers.airbases === true;
+}
+
+function applyRunwayVisibility(entry) {
+    const show = shouldShowRunway();
+    if (show && !entry.visible) {
+        entry.layer.addTo(map);
+        entry.visible = true;
+    } else if (!show && entry.visible) {
+        entry.layer.remove();
+        entry.visible = false;
+    }
+}
+
+function applyRunwayVisibilityAll() {
+    for (const entry of runwaysByKey.values()) applyRunwayVisibility(entry);
+}
+
+function applyRunwaysSnapshot(runways) {
+    // Runways are static for the mission — full replace each snapshot.
+    for (const { layer, visible } of runwaysByKey.values()) {
+        if (visible) layer.remove();
+    }
+    runwaysByKey.clear();
+    runways.forEach((rw, i) => {
+        const layer = buildRunwayLayer(rw);
+        const entry = { layer, data: rw, visible: false };
+        runwaysByKey.set(`${rw.airbase_name}/${rw.name}/${i}`, entry);
+        applyRunwayVisibility(entry);
+    });
+}
+
+// --- navaids ----------------------------------------------------------------
+
+// Map a friendly navaid type to a glyph family. Chart-ish: hexagon = VOR
+// family, triangle = TACAN/RSBN, square = DME, diamond = ILS/PRMG, dashed
+// circle = NDB.
+function navaidShape(type) {
+    const t = (type || "").toUpperCase();
+    if (t.startsWith("NDB")) return "ndb";
+    if (t.startsWith("VOR")) return "hex"; // VOR, VOR/DME, VORTAC
+    if (t.startsWith("TACAN") || t.startsWith("RSBN")) return "tri";
+    if (t.startsWith("DME")) return "sq";
+    if (t.startsWith("ILS") || t.startsWith("PRMG")) return "diamond";
+    return "circle";
+}
+
+function navaidGlyphInner(shape) {
+    // Filled silhouettes (centered in a 24×24 box). Shape alone carries type;
+    // NDB is a plain disc, distinct from the polygonal aids.
+    switch (shape) {
+        case "hex": return '<polygon points="12,4 19,8 19,16 12,20 5,16 5,8" />';
+        case "tri": return '<polygon points="12,4.5 20,19 4,19" />';
+        case "sq": return '<rect x="5.5" y="5.5" width="13" height="13" />';
+        case "diamond": return '<polygon points="12,3 21,12 12,21 3,12" />';
+        case "ndb": return '<circle cx="12" cy="12" r="7" />';
+        default: return '<circle cx="12" cy="12" r="6.5" />';
+    }
+}
+
+function buildNavaidIcon(type) {
+    const inner = navaidGlyphInner(navaidShape(type));
+    // White halo (outline only) for separation, then the filled cyan glyph with
+    // a dark edge on top — reads against reddish terrain, purple lines, and red
+    // airport hatching alike.
+    const svg = `
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="${NAVAID_SIZE}" height="${NAVAID_SIZE}">
+  <g fill="none" stroke="${NAVAID_HALO}" stroke-width="3.6" stroke-linejoin="round" opacity="0.95">${inner}</g>
+  <g fill="${NAVAID_FILL}" stroke="${NAVAID_OUTLINE}" stroke-width="1.5" stroke-linejoin="round">${inner}</g>
+</svg>`.trim();
+    return L.divIcon({
+        className: "navaid-icon",
+        html: svg,
+        iconSize: [NAVAID_SIZE, NAVAID_SIZE],
+        iconAnchor: [NAVAID_SIZE / 2, NAVAID_SIZE / 2],
+    });
+}
+
+function formatNavaidTune(n) {
+    const parts = [];
+    if (typeof n.freq_hz === "number" && n.freq_hz > 0) {
+        parts.push(
+            n.freq_hz >= 1e6
+                ? `${(n.freq_hz / 1e6).toFixed(2)} MHz`
+                : `${Math.round(n.freq_hz / 1e3)} kHz`,
+        );
+    }
+    // TACAN/VORTAC channels carry an X/Y band, e.g. "75X".
+    if (n.channel) parts.push(`Ch ${n.channel}${n.band || ""}`);
+    return parts.join(" · ");
+}
+
+function tooltipForNavaid(n) {
+    const cs = n.callsign ? `${escapeHtml(n.callsign)} ` : "";
+    const nm = n.name ? `<br>${escapeHtml(n.name)}` : "";
+    const tune = formatNavaidTune(n);
+    return `<b>${cs}${escapeHtml(n.type || "Navaid")}</b>${nm}${tune ? "<br>" + tune : ""}`;
+}
+
+function shouldShowNavaid() {
+    // Coalition-independent (navaids are physical infrastructure). Own toggle.
+    return FILTERS.layers.navaids === true;
+}
+
+function applyNavaidVisibility(entry) {
+    const show = shouldShowNavaid();
+    if (show && !entry.visible) {
+        entry.marker.addTo(map);
+        entry.visible = true;
+    } else if (!show && entry.visible) {
+        entry.marker.remove();
+        entry.visible = false;
+    }
+}
+
+function applyNavaidVisibilityAll() {
+    for (const entry of navaidsByKey.values()) applyNavaidVisibility(entry);
+}
+
+function applyNavaidsSnapshot(navaids) {
+    // Static per theatre — full replace each snapshot.
+    for (const { marker, visible } of navaidsByKey.values()) {
+        if (visible) marker.remove();
+    }
+    navaidsByKey.clear();
+    navaids.forEach((n, i) => {
+        const marker = L.marker([n.lat, n.lon], {
+            icon: buildNavaidIcon(n.type),
+            pane: NAVAIDS_PANE,
+            keyboard: false,
+            interactive: true,
+        });
+        marker.bindTooltip(tooltipForNavaid(n), { direction: "top", offset: [0, -2] });
+        marker.on("click", toggleStickyTooltip);
+        const entry = { marker, data: n, visible: false };
+        navaidsByKey.set(`${n.callsign}/${n.type}/${i}`, entry);
+        applyNavaidVisibility(entry);
+    });
+}
+
 // --- F10 map marks ----------------------------------------------------------
 
 function markLabelText(m) {
@@ -2015,6 +2314,15 @@ function connectWebSocket() {
                 case "bullseyes_snapshot":
                     applyBullseyesSnapshot(msg.bullseyes || []);
                     break;
+                case "airbases_snapshot":
+                    applyAirbasesSnapshot(msg.airbases || []);
+                    break;
+                case "runways_snapshot":
+                    applyRunwaysSnapshot(msg.runways || []);
+                    break;
+                case "navaids_snapshot":
+                    applyNavaidsSnapshot(msg.navaids || []);
+                    break;
                 case "marks_snapshot":
                     applyMarksSnapshot(msg.marks || []);
                     break;
@@ -2089,8 +2397,134 @@ function connectWebSocket() {
         btn.addEventListener("click", handleCopyClick);
     }
     wireKneeboardControls();
+    wireSettings();
     connectWebSocket();
 })();
+
+// --- settings panel ---------------------------------------------------------
+// Maps the editable setting keys (as the backend names them) to their input
+// element ids. POST/GET use the same keys, so this is the single source of
+// truth for which fields the panel exposes.
+const SETTINGS_FIELDS = {
+    dcs_install_dir: "setDcsDir",
+    http_port: "setHttpPort",
+    http_host: "setHttpHost",
+    grpc_host: "setGrpcHost",
+    grpc_port: "setGrpcPort",
+};
+let settingsMeta = {}; // key -> { value, env_locked, restart_required }
+
+async function openSettings() {
+    const modal = document.getElementById("settingsModal");
+    if (!modal) return;
+    const banner = document.getElementById("settingsBanner");
+    const msg = document.getElementById("settingsMsg");
+    if (banner) { banner.hidden = true; banner.textContent = ""; }
+    if (msg) { msg.textContent = ""; msg.className = "settings-msg"; }
+    try {
+        const res = await fetch("/api/settings");
+        const data = await res.json();
+        settingsMeta = data.settings || {};
+        for (const [key, id] of Object.entries(SETTINGS_FIELDS)) {
+            const meta = settingsMeta[key] || {};
+            const el = document.getElementById(id);
+            if (!el) continue;
+            el.value = meta.value ?? "";
+            el.disabled = !!meta.env_locked;
+            const field = el.closest(".settings-field");
+            const existing = field?.querySelector(".settings-locked");
+            if (meta.env_locked && field && !existing) {
+                const n = document.createElement("span");
+                n.className = "settings-hint settings-locked";
+                n.textContent = "Pinned by an environment variable.";
+                field.appendChild(n);
+            } else if (!meta.env_locked && existing) {
+                existing.remove();
+            }
+        }
+        const dcsInput = document.getElementById("setDcsDir");
+        const dcsHint = document.getElementById("setDcsHint");
+        const detected = data.dcs_install_dir_detected;
+        if (dcsInput) dcsInput.placeholder = detected ? `auto-detected: ${detected}` : "e.g. C:\\DCS";
+        if (dcsHint) {
+            dcsHint.textContent = detected
+                ? "Leave blank to use the auto-detected path."
+                : "Not auto-detected — set your DCS World install folder for the Navaids layer.";
+        }
+    } catch (err) {
+        console.warn("settings load failed:", err);
+    }
+    modal.hidden = false;
+}
+
+function closeSettings() {
+    const modal = document.getElementById("settingsModal");
+    if (modal) modal.hidden = true;
+}
+
+async function saveSettings() {
+    // Persist ONLY fields the user actually changed. Writing every visible
+    // field would bake current defaults into config.toml — cluttering it and
+    // freezing the user at today's defaults (a future default change wouldn't
+    // reach them). Env-locked keys are never sent (the server rejects them).
+    const payload = {};
+    for (const [key, id] of Object.entries(SETTINGS_FIELDS)) {
+        if (settingsMeta[key]?.env_locked) continue;
+        const el = document.getElementById(id);
+        if (!el) continue;
+        const current = String(settingsMeta[key]?.value ?? "");
+        const next = el.value.trim();
+        if (next !== current) payload[key] = next;
+    }
+    const msg = document.getElementById("settingsMsg");
+    const banner = document.getElementById("settingsBanner");
+    if (Object.keys(payload).length === 0) {
+        if (msg) { msg.textContent = "No changes."; msg.className = "settings-msg"; }
+        return;
+    }
+    try {
+        const res = await fetch("/api/settings", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+        });
+        const data = await res.json();
+        if (!res.ok || data.saved === false) {
+            if (msg) {
+                msg.textContent = (data.errors || ["save failed"]).join("; ");
+                msg.className = "settings-msg settings-msg-error";
+            }
+            return;
+        }
+        if (msg) { msg.textContent = "Saved."; msg.className = "settings-msg settings-msg-ok"; }
+        if (banner && data.restart_required && data.restart_required.length) {
+            banner.textContent = `Restart MizMap to apply: ${data.restart_required.join(", ")}.`;
+            banner.hidden = false;
+        }
+    } catch (err) {
+        if (msg) {
+            msg.textContent = `Save failed: ${err}`;
+            msg.className = "settings-msg settings-msg-error";
+        }
+    }
+}
+
+function wireSettings() {
+    const btn = document.getElementById("settingsBtn");
+    const closeBtn = document.getElementById("settingsClose");
+    const saveBtn = document.getElementById("settingsSave");
+    const modal = document.getElementById("settingsModal");
+    if (btn) btn.addEventListener("click", openSettings);
+    if (closeBtn) closeBtn.addEventListener("click", closeSettings);
+    if (saveBtn) saveBtn.addEventListener("click", saveSettings);
+    // Click on the dim backdrop (not the card) closes.
+    if (modal) modal.addEventListener("click", (e) => { if (e.target === modal) closeSettings(); });
+    document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape" && modal && !modal.hidden) closeSettings();
+    });
+    // Tray "Settings…" opens the viewer with ?settings=1.
+    if (new URLSearchParams(window.location.search).get("settings") === "1") openSettings();
+}
 
 // --- kneeboard touch controls ----------------------------------------------
 // `kbMeasureArmed` gates the next map click into the measure tool. The button

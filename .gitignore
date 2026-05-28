@@ -27,6 +27,8 @@ htmlcov/
 # Local config / secrets
 .env
 .env.local
+# Written by the in-app Settings panel (user_config_dir = cwd in dev).
+config.toml
 
 # Claude Code per-machine settings
 .claude/settings.local.json

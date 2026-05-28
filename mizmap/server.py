@@ -14,25 +14,45 @@ import logging
 import math
 import webbrowser
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 import httpx
 from fastapi import FastAPI, HTTPException, Response, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
 
 import mizmap.proto_gen  # noqa: F401  -- sets sys.path for generated imports
 from dcs.common.v0 import common_pb2
 
 from mizmap import __version__
-from mizmap.config import Settings
+from mizmap.config import (
+    Settings,
+    configured_value,
+    detect_dcs_install_dir,
+    env_locked_keys,
+    update_config_file,
+)
 from mizmap.grpc_client import DcsGrpcClient
 from mizmap.marks import Mark
+from mizmap.navaids import load_navaids
 from mizmap.paths import web_dir
 from mizmap.state import MissionState, Unit, unit_to_dict
 from mizmap.tiles import TileCache
 from mizmap.websocket import WebSocketHub
 
 log = logging.getLogger(__name__)
+
+
+class _SettingsUpdate(BaseModel):
+    """POST /api/settings body. The panel sends every editable, non-locked
+    field as a string; only fields present in the request are acted on."""
+
+    http_host: str | None = None
+    http_port: str | None = None
+    grpc_host: str | None = None
+    grpc_port: str | None = None
+    dcs_install_dir: str | None = None
 
 
 def _open_browser_safe(url: str) -> None:
@@ -93,6 +113,9 @@ def create_app(settings: Settings, *, open_browser: bool = False) -> FastAPI:
             # internal retry-once is what actually rescues this path.
             asyncio.create_task(_refresh_routes())
             asyncio.create_task(_refresh_bullseyes())
+            asyncio.create_task(_refresh_airbases())
+            asyncio.create_task(_refresh_runways())
+            asyncio.create_task(_refresh_navaids())
             asyncio.create_task(_refresh_marks())
 
     # DCS Lua can take 20–40 s to fully bootstrap a freshly-loaded mission;
@@ -136,6 +159,44 @@ def create_app(settings: Settings, *, open_browser: bool = False) -> FastAPI:
         state.set_bullseyes(bullseyes)
         await hub.broadcast(state.bullseyes_message())
 
+    async def _refresh_airbases(initial_delay: float = 0.0) -> None:
+        if initial_delay > 0:
+            await asyncio.sleep(initial_delay)
+        airbases = await _refresh_with_retry(grpc_client.fetch_airbases, "airbases")
+        if airbases is None:
+            return
+        state.set_airbases(airbases)
+        await hub.broadcast(state.airbases_message())
+
+    async def _refresh_runways(initial_delay: float = 0.0) -> None:
+        if initial_delay > 0:
+            await asyncio.sleep(initial_delay)
+        runways = await _refresh_with_retry(grpc_client.fetch_runways, "runways")
+        if runways is None:
+            return
+        state.set_runways(runways)
+        await hub.broadcast(state.runways_message())
+
+    async def _fetch_navaids() -> list | None:
+        # Navaids = theatre (gRPC) + the theatre's on-disk Beacons.lua. Re-read
+        # the DCS path from config each time so a Settings change applies live.
+        theatre = await grpc_client.fetch_theatre()
+        if theatre is None:
+            return None  # gRPC not ready yet → retry
+        dcs_dir = Settings.from_env().dcs_install_dir
+        navaids = load_navaids(dcs_dir, theatre)
+        # None (file not found) → definitive empty so we don't retry forever.
+        return navaids if navaids is not None else []
+
+    async def _refresh_navaids(initial_delay: float = 0.0) -> None:
+        if initial_delay > 0:
+            await asyncio.sleep(initial_delay)
+        navaids = await _refresh_with_retry(_fetch_navaids, "navaids")
+        if navaids is None:
+            return
+        state.set_navaids(navaids)
+        await hub.broadcast(state.navaids_message())
+
     async def _refresh_marks(initial_delay: float = 0.0) -> None:
         if initial_delay > 0:
             await asyncio.sleep(initial_delay)
@@ -158,18 +219,29 @@ def create_app(settings: Settings, *, open_browser: bool = False) -> FastAPI:
         cleared = state.clear()
         cleared_routes = state.clear_routes()
         cleared_bull = state.clear_bullseyes()
+        cleared_air = state.clear_airbases()
+        cleared_rwy = state.clear_runways()
+        cleared_nav = state.clear_navaids()
         cleared_marks = state.clear_marks()
-        if cleared or cleared_routes or cleared_bull or cleared_marks:
+        if (cleared or cleared_routes or cleared_bull or cleared_air
+                or cleared_rwy or cleared_nav or cleared_marks):
             log.info(
-                "gRPC dropped — cleared %d units, %d routes, %d bullseyes, %d marks",
+                "gRPC dropped — cleared %d units, %d routes, %d bullseyes, "
+                "%d airbases, %d runways, %d navaids, %d marks",
                 cleared,
                 cleared_routes,
                 cleared_bull,
+                cleared_air,
+                cleared_rwy,
+                cleared_nav,
                 cleared_marks,
             )
         await hub.broadcast({"type": "units_snapshot", "units": []})
         await hub.broadcast({"type": "mission_routes_snapshot", "routes": []})
         await hub.broadcast({"type": "bullseyes_snapshot", "bullseyes": []})
+        await hub.broadcast({"type": "airbases_snapshot", "airbases": []})
+        await hub.broadcast({"type": "runways_snapshot", "runways": []})
+        await hub.broadcast({"type": "navaids_snapshot", "navaids": []})
         await hub.broadcast({"type": "marks_snapshot", "marks": []})
 
     async def on_mission_start() -> None:
@@ -182,6 +254,9 @@ def create_app(settings: Settings, *, open_browser: bool = False) -> FastAPI:
         # catches the slower cases.
         asyncio.create_task(_refresh_routes(initial_delay=5.0))
         asyncio.create_task(_refresh_bullseyes(initial_delay=5.0))
+        asyncio.create_task(_refresh_airbases(initial_delay=5.0))
+        asyncio.create_task(_refresh_runways(initial_delay=5.0))
+        asyncio.create_task(_refresh_navaids(initial_delay=5.0))
         asyncio.create_task(_refresh_marks(initial_delay=5.0))
 
     async def on_mission_end() -> None:
@@ -191,15 +266,25 @@ def create_app(settings: Settings, *, open_browser: bool = False) -> FastAPI:
         # mission_start's fresh snapshot. The gRPC channel stays up.
         cleared_routes = state.clear_routes()
         cleared_bull = state.clear_bullseyes()
+        cleared_air = state.clear_airbases()
+        cleared_rwy = state.clear_runways()
+        cleared_nav = state.clear_navaids()
         cleared_marks = state.clear_marks()
         log.info(
-            "mission ended — cleared %d routes, %d bullseyes, %d marks",
+            "mission ended — cleared %d routes, %d bullseyes, %d airbases, "
+            "%d runways, %d navaids, %d marks",
             cleared_routes,
             cleared_bull,
+            cleared_air,
+            cleared_rwy,
+            cleared_nav,
             cleared_marks,
         )
         await hub.broadcast({"type": "mission_routes_snapshot", "routes": []})
         await hub.broadcast({"type": "bullseyes_snapshot", "bullseyes": []})
+        await hub.broadcast({"type": "airbases_snapshot", "airbases": []})
+        await hub.broadcast({"type": "runways_snapshot", "runways": []})
+        await hub.broadcast({"type": "navaids_snapshot", "navaids": []})
         await hub.broadcast({"type": "marks_snapshot", "marks": []})
 
     async def on_mark_add(mark: Mark) -> None:
@@ -257,6 +342,9 @@ def create_app(settings: Settings, *, open_browser: bool = False) -> FastAPI:
                 "units": len(state.units),
                 "routes": len(state.routes),
                 "bullseyes": len(state.bullseyes),
+                "airbases": len(state.airbases),
+                "runways": len(state.runways),
+                "navaids": len(state.navaids),
                 "marks": len(state.marks),
             }
         )
@@ -291,6 +379,94 @@ def create_app(settings: Settings, *, open_browser: bool = False) -> FastAPI:
             }
         )
 
+    # --- settings (config UX) ----------------------------------------------
+    # Editable via the in-app Settings panel. Network keys need a restart to
+    # apply (can't rebind a live socket); dcs_install_dir applies on save.
+    _NETWORK_KEYS = ("http_host", "http_port", "grpc_host", "grpc_port")
+    _EDITABLE_KEYS = (*_NETWORK_KEYS, "dcs_install_dir")
+
+    def _setting_value(s: Settings, key: str) -> object:
+        # dcs_install_dir: show only an explicit override so the field stays
+        # blank when relying on auto-detect (the detected path is the
+        # placeholder); saving blank then keeps auto-detect rather than pinning.
+        if key == "dcs_install_dir":
+            return str(configured_value(key) or "")
+        v = getattr(s, key)
+        if v is None:
+            return ""
+        return str(v) if isinstance(v, Path) else v
+
+    @app.get("/api/settings")
+    async def get_settings() -> JSONResponse:
+        s = Settings.from_env()  # fresh — reflects the saved file, not startup
+        locked = env_locked_keys()
+        detected = detect_dcs_install_dir()
+        out = {
+            key: {
+                "value": _setting_value(s, key),
+                "env_locked": key in locked,
+                "restart_required": key in _NETWORK_KEYS,
+            }
+            for key in _EDITABLE_KEYS
+        }
+        return JSONResponse(
+            {
+                "settings": out,
+                "dcs_install_dir_detected": str(detected) if detected else None,
+            }
+        )
+
+    @app.post("/api/settings")
+    async def post_settings(body: _SettingsUpdate) -> JSONResponse:
+        provided = body.model_dump(exclude_unset=True)
+        locked = env_locked_keys()
+        updates: dict[str, object] = {}
+        errors: list[str] = []
+        for key in _EDITABLE_KEYS:
+            if key not in provided:
+                continue
+            if key in locked:
+                errors.append(f"{key} is pinned by an environment variable")
+                continue
+            raw = provided[key]
+            if key in ("http_port", "grpc_port"):
+                try:
+                    port = int(raw)
+                except (TypeError, ValueError):
+                    errors.append(f"{key} must be an integer")
+                    continue
+                if not (1 <= port <= 65535):
+                    errors.append(f"{key} must be between 1 and 65535")
+                    continue
+                updates[key] = port
+            elif key in ("http_host", "grpc_host"):
+                host = str(raw).strip()
+                if not host:
+                    errors.append(f"{key} must not be empty")
+                    continue
+                updates[key] = host
+            elif key == "dcs_install_dir":
+                path = str(raw).strip()
+                if not path:
+                    updates[key] = None  # clear → revert to auto-detect
+                elif not Path(path).is_dir():
+                    errors.append("dcs_install_dir: directory does not exist")
+                else:
+                    updates[key] = Path(path).as_posix()
+        if errors:
+            return JSONResponse({"saved": False, "errors": errors}, status_code=400)
+        if not updates:
+            return JSONResponse({"saved": False, "errors": ["no changes"]}, status_code=400)
+        update_config_file(updates)
+        restart_required = sorted(
+            k for k in updates if k in _NETWORK_KEYS and updates[k] != getattr(settings, k)
+        )
+        # dcs_install_dir applies live: re-resolve + re-parse Beacons.lua and
+        # re-broadcast navaids (no restart). _fetch_navaids reads the path fresh.
+        if "dcs_install_dir" in updates:
+            asyncio.create_task(_refresh_navaids())
+        return JSONResponse({"saved": True, "restart_required": restart_required})
+
     @app.get("/tiles/{z}/{x}/{y}.png")
     async def tile(z: int, x: int, y: int) -> Response:
         # Cheap sanity bound — Leaflet/OpenTopoMap won't request beyond ~22.
@@ -321,6 +497,9 @@ def create_app(settings: Settings, *, open_browser: bool = False) -> FastAPI:
             await ws.send_json(state.snapshot_message())
             await ws.send_json(state.routes_message())
             await ws.send_json(state.bullseyes_message())
+            await ws.send_json(state.airbases_message())
+            await ws.send_json(state.runways_message())
+            await ws.send_json(state.navaids_message())
             await ws.send_json(state.marks_message())
             while True:
                 try:

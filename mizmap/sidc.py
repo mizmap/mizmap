@@ -95,3 +95,32 @@ def threat_km_for(unit_type: str | None) -> float | None:
     """Return the typedb-declared max engagement range in km, or None."""
     entry = _typedb_lookup(unit_type)
     return entry.threat_km if entry is not None else None
+
+
+# DCS AirbaseCategory enum values (from common.proto)
+AIRBASE_CATEGORY_AIRDROME = 1
+AIRBASE_CATEGORY_HELIPAD = 2
+AIRBASE_CATEGORY_SHIP = 3
+
+# MIL-STD-2525C installation function IDs. Airbases are ground-dimension
+# installations; the position-11 'H' modifier is what milsymbol reads to draw
+# the gabled installation frame. IBA--- = airport/air base (airplane glyph);
+# IB---- = generic military base/facility, used for FARPs/FOBs since 2525C has
+# no dedicated heliport installation symbol.
+_FN_AIRPORT = "IBA---"
+_FN_BASE = "IB----"
+
+
+def airbase_sidc_for(coalition: int, category: int) -> str:
+    """Compute a 15-character MIL-STD-2525C installation SIDC for an airbase.
+
+    Helipads (FARPs/FOBs) get the generic base symbol; everything else
+    (airdromes and ships) gets the airport/air base symbol. Affiliation comes
+    from the coalition; status is always Present.
+    """
+    affiliation = _affiliation(coalition)
+    function = _FN_BASE if category == AIRBASE_CATEGORY_HELIPAD else _FN_AIRPORT
+    # S + affiliation + G(round) + P(resent) + 6-char function + 'H' install + 4 pad
+    sidc = f"S{affiliation}GP{function}H----"
+    assert len(sidc) == 15, f"SIDC must be 15 chars, got {len(sidc)}: {sidc!r}"
+    return sidc

@@ -153,6 +153,13 @@ def run_with_tray(app: "FastAPI", settings: "Settings") -> None:
         except Exception as exc:  # noqa: BLE001
             log.warning("could not open browser at %s: %s", url, exc)
 
+    def on_settings(icon, item):  # noqa: ARG001
+        # ?settings=1 makes the viewer auto-open the Settings panel on load.
+        try:
+            webbrowser.open(f"{url}?settings=1")
+        except Exception as exc:  # noqa: BLE001
+            log.warning("could not open settings at %s: %s", url, exc)
+
     def on_copy_lan(icon, item):  # noqa: ARG001
         if lan_url and _copy_to_clipboard(lan_url):
             log.info("tray: copied %s to clipboard", lan_url)
@@ -166,7 +173,10 @@ def run_with_tray(app: "FastAPI", settings: "Settings") -> None:
     # Falls back to the local URL if we're loopback-bound or LAN detection
     # failed (which surfaces lan_url == None or the loopback-IP fallback).
     title = f"MizMap — {lan_url}" if lan_url else f"MizMap — {url}"
-    menu_items = [pystray.MenuItem("Open viewer", on_open, default=True)]
+    menu_items = [
+        pystray.MenuItem("Open viewer", on_open, default=True),
+        pystray.MenuItem("Settings…", on_settings),
+    ]
     if lan_url:
         menu_items.append(pystray.MenuItem(f"Copy LAN URL ({lan_url})", on_copy_lan))
     menu_items += [pystray.Menu.SEPARATOR, pystray.MenuItem("Quit MizMap", on_quit)]

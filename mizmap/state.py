@@ -11,9 +11,12 @@ import time
 from dataclasses import dataclass, field
 from typing import Any
 
+from mizmap.airbase import Airbase
 from mizmap.bullseye import Bullseye
 from mizmap.marks import Mark
+from mizmap.navaids import Navaid
 from mizmap.routes import GroupRoute
+from mizmap.runways import Runway
 from mizmap.sidc import sidc_for, threat_km_for
 
 _TWO_PI = 2.0 * math.pi
@@ -104,6 +107,9 @@ class MissionState:
     units: dict[int, Unit] = field(default_factory=dict)
     routes: list[GroupRoute] = field(default_factory=list)
     bullseyes: list[Bullseye] = field(default_factory=list)
+    airbases: list[Airbase] = field(default_factory=list)
+    runways: list[Runway] = field(default_factory=list)
+    navaids: list[Navaid] = field(default_factory=list)
     marks: dict[int, Mark] = field(default_factory=dict)
 
     def upsert(self, unit: Unit) -> tuple[Unit, bool]:
@@ -155,6 +161,48 @@ class MissionState:
         return {
             "type": "bullseyes_snapshot",
             "bullseyes": [b.to_dict() for b in self.bullseyes],
+        }
+
+    def set_airbases(self, airbases: list[Airbase]) -> None:
+        self.airbases = list(airbases)
+
+    def clear_airbases(self) -> int:
+        n = len(self.airbases)
+        self.airbases.clear()
+        return n
+
+    def airbases_message(self) -> dict[str, Any]:
+        return {
+            "type": "airbases_snapshot",
+            "airbases": [a.to_dict() for a in self.airbases],
+        }
+
+    def set_runways(self, runways: list[Runway]) -> None:
+        self.runways = list(runways)
+
+    def clear_runways(self) -> int:
+        n = len(self.runways)
+        self.runways.clear()
+        return n
+
+    def runways_message(self) -> dict[str, Any]:
+        return {
+            "type": "runways_snapshot",
+            "runways": [r.to_dict() for r in self.runways],
+        }
+
+    def set_navaids(self, navaids: list[Navaid]) -> None:
+        self.navaids = list(navaids)
+
+    def clear_navaids(self) -> int:
+        n = len(self.navaids)
+        self.navaids.clear()
+        return n
+
+    def navaids_message(self) -> dict[str, Any]:
+        return {
+            "type": "navaids_snapshot",
+            "navaids": [n.to_dict() for n in self.navaids],
         }
 
     def set_marks(self, marks: list[Mark]) -> None:

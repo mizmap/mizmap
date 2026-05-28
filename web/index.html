@@ -52,6 +52,8 @@
         <div class="filter-section-label">Layers</div>
         <label class="filter-row"><span class="filter-name">Routes</span><input type="checkbox" data-filter="layers" data-value="routes" checked /><span class="mizmap-switch-track"><span class="mizmap-switch-thumb"></span></span></label>
         <label class="filter-row"><span class="filter-name">Bullseyes</span><input type="checkbox" data-filter="layers" data-value="bullseyes" checked /><span class="mizmap-switch-track"><span class="mizmap-switch-thumb"></span></span></label>
+        <label class="filter-row"><span class="filter-name">Airbases</span><input type="checkbox" data-filter="layers" data-value="airbases" checked /><span class="mizmap-switch-track"><span class="mizmap-switch-thumb"></span></span></label>
+        <label class="filter-row"><span class="filter-name">Navaids</span><input type="checkbox" data-filter="layers" data-value="navaids" checked /><span class="mizmap-switch-track"><span class="mizmap-switch-thumb"></span></span></label>
         <label class="filter-row"><span class="filter-name">Map marks</span><input type="checkbox" data-filter="layers" data-value="marks" checked /><span class="mizmap-switch-track"><span class="mizmap-switch-thumb"></span></span></label>
         <label class="filter-row"><span class="filter-name">Measure</span><input type="checkbox" data-filter="layers" data-value="measure" checked /><span class="mizmap-switch-track"><span class="mizmap-switch-thumb"></span></span></label>
         <label class="filter-row"><span class="filter-name">Threats</span><input type="checkbox" data-filter="layers" data-value="threats" checked /><span class="mizmap-switch-track"><span class="mizmap-switch-thumb"></span></span></label>
@@ -81,6 +83,7 @@
             <span id="grpcStatus" class="status status-down filter-status-value">disconnected</span>
         </div>
         <div class="filter-row-error" id="grpcError" hidden></div>
+        <button type="button" id="settingsBtn" class="settings-open-btn">Settings…</button>
     </div>
 
     <div id="navpanel">
@@ -159,6 +162,47 @@
         <div class="tlm-cell"><span class="tlm-label">GS</span><span class="tlm-value" id="tlmGs">—</span></div>
         <div class="tlm-cell"><span class="tlm-label">VS</span><span class="tlm-value" id="tlmVs">—</span></div>
         <div class="tlm-cell"><span class="tlm-label">HDG</span><span class="tlm-value" id="tlmHdg">—</span></div>
+    </div>
+
+    <div id="settingsModal" class="settings-modal" hidden>
+        <div class="settings-card" role="dialog" aria-modal="true" aria-label="MizMap settings">
+            <div class="settings-header">
+                <span class="settings-title">SETTINGS</span>
+                <button type="button" id="settingsClose" class="settings-close" aria-label="Close">×</button>
+            </div>
+            <div class="settings-body">
+                <div class="settings-banner" id="settingsBanner" hidden></div>
+                <label class="settings-field">
+                    <span class="settings-label">DCS install folder</span>
+                    <input type="text" id="setDcsDir" class="settings-input" placeholder="auto-detect" autocomplete="off" spellcheck="false" />
+                    <span class="settings-hint" id="setDcsHint"></span>
+                </label>
+                <label class="settings-field">
+                    <span class="settings-label">Web server port</span>
+                    <input type="number" id="setHttpPort" class="settings-input" min="1" max="65535" />
+                    <span class="settings-hint">Restart MizMap to apply.</span>
+                </label>
+                <label class="settings-field">
+                    <span class="settings-label">Bind address</span>
+                    <input type="text" id="setHttpHost" class="settings-input" autocomplete="off" spellcheck="false" />
+                    <span class="settings-hint">0.0.0.0 = reachable by LAN tablets; 127.0.0.1 = local only. Restart to apply.</span>
+                </label>
+                <label class="settings-field">
+                    <span class="settings-label">DCS-gRPC host</span>
+                    <input type="text" id="setGrpcHost" class="settings-input" autocomplete="off" spellcheck="false" />
+                    <span class="settings-hint">Restart to apply.</span>
+                </label>
+                <label class="settings-field">
+                    <span class="settings-label">DCS-gRPC port</span>
+                    <input type="number" id="setGrpcPort" class="settings-input" min="1" max="65535" />
+                    <span class="settings-hint">Restart to apply.</span>
+                </label>
+                <div class="settings-actions">
+                    <span class="settings-msg" id="settingsMsg"></span>
+                    <button type="button" id="settingsSave" class="settings-save">Save</button>
+                </div>
+            </div>
+        </div>
     </div>
 
     <script

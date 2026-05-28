@@ -20,6 +20,11 @@ html, body {
     border: none;
 }
 
+.navaid-icon {
+    background: transparent;
+    border: none;
+}
+
 #filters {
     position: absolute;
     top: 12px;
@@ -408,6 +413,26 @@ html, body {
 .waypoint-label-coal3 { color: #5b8def; } /* blue */
 .waypoint-label-hidden { display: none; }
 
+/* Permanent airbase name labels — match DCS's F10 airfield captions. */
+.airbase-label {
+    background: rgba(20, 20, 20, 0.85);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 3px;
+    padding: 1px 5px;
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 10px;
+    font-weight: 600;
+    white-space: nowrap;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+.airbase-label::before {
+    /* kill Leaflet's default tooltip arrow */
+    display: none !important;
+}
+.airbase-label-coal1 { color: #cfd3d6; } /* neutral — most airfields */
+.airbase-label-coal2 { color: #e07c7c; } /* red */
+.airbase-label-coal3 { color: #5b8def; } /* blue */
+
 /* Permanent F10-mark labels — match DCS's always-on red-tinted captions. */
 .mark-label {
     background: rgba(20, 20, 20, 0.85);
@@ -627,6 +652,135 @@ html, body {
 .filter-row-error[hidden] {
     display: none;
 }
+
+/* "Settings…" button at the foot of the filter panel. */
+.settings-open-btn {
+    margin-top: 8px;
+    width: 100%;
+    padding: 6px 10px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: 4px;
+    color: #d6d6d6;
+    font: inherit;
+    font-size: 12px;
+    cursor: pointer;
+}
+.settings-open-btn:hover {
+    background: rgba(255, 255, 255, 0.12);
+}
+
+/* ---- Settings modal ---------------------------------------------------- */
+.settings-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 2000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.55);
+    padding: 16px;
+}
+.settings-modal[hidden] { display: none; }
+
+.settings-card {
+    width: min(440px, 100%);
+    max-height: calc(100vh - 32px);
+    overflow-y: auto;
+    background: rgba(24, 24, 24, 0.98);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: 8px;
+    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.6);
+    color: #e6e6e6;
+}
+.settings-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+}
+.settings-title {
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    color: #9aa0a6;
+}
+.settings-close {
+    background: none;
+    border: none;
+    color: #9aa0a6;
+    font-size: 22px;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0 4px;
+}
+.settings-close:hover { color: #fff; }
+
+.settings-body { padding: 14px 16px 16px; }
+
+.settings-banner {
+    margin-bottom: 12px;
+    padding: 8px 10px;
+    border-radius: 4px;
+    background: rgba(244, 211, 94, 0.15);
+    border: 1px solid rgba(244, 211, 94, 0.5);
+    color: #f4d35e;
+    font-size: 12px;
+}
+.settings-banner[hidden] { display: none; }
+
+.settings-field {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    margin-bottom: 14px;
+}
+.settings-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: #cfd3d6;
+}
+.settings-input {
+    background: rgba(0, 0, 0, 0.35);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 4px;
+    padding: 6px 8px;
+    color: #fff;
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 13px;
+}
+.settings-input:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+.settings-hint {
+    font-size: 11px;
+    color: #9aa0a6;
+}
+.settings-locked { color: #f4d35e; }
+
+.settings-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 12px;
+    margin-top: 4px;
+}
+.settings-msg { font-size: 12px; margin-right: auto; }
+.settings-msg-ok { color: #6dd58c; }
+.settings-msg-error { color: #e07c7c; }
+.settings-save {
+    padding: 7px 18px;
+    background: #5b8def;
+    border: none;
+    border-radius: 4px;
+    color: #fff;
+    font: inherit;
+    font-weight: 600;
+    cursor: pointer;
+}
+.settings-save:hover { background: #6f9bf2; }
 
 /* Recenter-on-own-ship button (Leaflet bottom-left control). */
 .mizmap-recenter .mizmap-recenter-btn {
