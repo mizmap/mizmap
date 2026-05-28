@@ -136,27 +136,34 @@ html, body {
     -webkit-backdrop-filter: blur(6px);
     border: 1px solid rgba(255, 255, 255, 0.12);
     border-radius: 8px;
-    padding: 8px 14px;
-    display: flex;
-    gap: 18px;
+    padding: 6px 14px 8px;
+    /* Fixed table layout: a name header row, then two rows of field cells in
+       a 4-column grid (MGRS spans two columns so its long value fits). A rigid
+       grid keeps the block the same compact shape at every viewport width
+       rather than ragged-wrapping into a tall column that swallows the map. */
+    display: grid;
+    grid-template-columns: repeat(4, auto);
+    justify-content: center;
+    justify-items: center;
     align-items: center;
+    column-gap: 16px;
+    row-gap: 4px;
     font-size: 12px;
-    line-height: 1.3;
+    line-height: 1.25;
     user-select: text;
     max-width: calc(100vw - 24px);
-    flex-wrap: wrap;
-    justify-content: center;
 }
 
 .tlm-cell {
     display: flex;
     flex-direction: column;
     align-items: center;
-    min-width: 64px;
 }
 
+/* MGRS value is far longer than the rest — span two columns so the other
+   columns stay tight instead of all widening to match it. */
 .tlm-mgrs {
-    min-width: 160px;
+    grid-column: span 2;
 }
 
 .tlm-label {
@@ -171,6 +178,7 @@ html, body {
     font-weight: 600;
     font-variant-numeric: tabular-nums;
     font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    white-space: nowrap; /* keep every value on one line so the grid stays the same height at all widths */
 }
 
 #telemetry[data-empty="true"] .tlm-value {
@@ -182,6 +190,7 @@ html, body {
    to tie to the sticky-tooltip color and signal "this HUD is showing the
    selected unit, not own-ship." */
 .tlm-name {
+    grid-column: 1 / -1; /* full-width header row above the field cells */
     color: #d6d6d6;
     font-weight: 600;
     font-size: 12px;
@@ -512,6 +521,15 @@ html, body {
     box-shadow: 0 0 0 3px rgba(244, 211, 94, 0.25);
 }
 
+/* Narrow desktop windows: the centered HUD and the corner-docked measure panel
+   would collide (the HUD reaches the right edge before there's room). Lift the
+   measure panel clear of the HUD's top instead of letting them overlap. The
+   touch query below (<=900) overrides this with a larger offset that also
+   clears the floating MEASURE button — it must stay after this rule in source. */
+@media (min-width: 901px) and (max-width: 1024px) {
+    #measure { bottom: 120px; }
+}
+
 @media (max-width: 900px), (pointer: coarse) {
     /* Measure button is touch-only; desktop has middle-click. */
     .kb-measure-btn { display: flex; }
@@ -559,50 +577,52 @@ html, body {
         padding: 3px 6px;
     }
 
-    /* Telemetry HUD is the pilot's primary info — big and always-visible. */
+    /* Telemetry HUD: a touch larger than desktop for at-a-glance reads, but
+       kept compact — the same 2-row grid, not blown up so big it eats the map. */
     #telemetry {
-        font-size: 14px;
-        padding: 10px 16px;
-        gap: 20px;
-    }
-    .tlm-label { font-size: 11px; }
-    .tlm-value { font-size: 20px; }
-    .tlm-cell { min-width: 78px; }
-    .tlm-mgrs { min-width: 200px; }
-
-    /* Measure panel — bigger tap targets; shifted up so it clears the
-       floating MEASURE button at lower-right. */
-    #measure {
         font-size: 13px;
+        padding: 6px 14px 8px;
+        column-gap: 14px;
+        row-gap: 4px;
+    }
+    .tlm-label { font-size: 10px; }
+    .tlm-value { font-size: 15px; }
+
+    /* Measure panel — compact rows so it doesn't dominate a small screen, and
+       lifted clear of the bottom HUD + the floating MEASURE button below it. */
+    #measure {
+        font-size: 12px;
         bottom: 140px;
+        min-width: 172px;
+        padding: 6px 10px 8px;
     }
     .measure-row {
-        padding: 4px 0;
+        padding: 1px 0;
+        grid-template-columns: minmax(64px, auto) 1fr 22px;
+        gap: 8px;
     }
 
-    /* Nav panel arrow buttons get an extra bump for fingertip tap targets;
-       positioning is inherited from the base style (top-right). */
+    /* Nav panel arrow buttons get a modest bump for fingertip tap targets;
+       positioning is inherited from the base style (top-right). Values stay at
+       the base 15px so NAV reads as part of the same compact chrome family. */
     .nav-wp-arrow {
-        width: 40px;
-        height: 40px;
-        font-size: 24px;
+        width: 30px;
+        height: 30px;
+        font-size: 20px;
         border-radius: 6px;
     }
     .nav-wp-controls { gap: 8px; }
-    .nav-cell { min-width: 180px; }
-    .nav-value { font-size: 19px; }
 }
 
-/* Phone portrait: tighten the telemetry strip so it doesn't crowd the map. */
+/* Phone portrait: tighten the telemetry grid further so it doesn't crowd the map. */
 @media (max-width: 480px) {
     #telemetry {
         font-size: 12px;
-        gap: 12px;
-        padding: 8px 10px;
+        column-gap: 10px;
+        row-gap: 3px;
+        padding: 5px 10px 7px;
     }
-    .tlm-value { font-size: 17px; }
-    .tlm-cell { min-width: 60px; }
-    .tlm-mgrs { min-width: 150px; }
+    .tlm-value { font-size: 14px; }
 }
 
 .status-up {
@@ -807,24 +827,24 @@ html, body {
     display: flex;
     flex-direction: column;
     align-items: stretch;
-    gap: 14px;
+    gap: 8px;
     background: rgba(20, 20, 20, 0.85);
     backdrop-filter: blur(6px);
     -webkit-backdrop-filter: blur(6px);
     border: 1px solid rgba(255, 255, 255, 0.12);
     border-radius: 10px;
-    padding: 14px 18px;
-    font-size: 14px;
-    line-height: 1.3;
+    padding: 10px 14px 11px;
+    font-size: 13px;
+    line-height: 1.25;
     user-select: none;
 }
 
 .nav-data {
     display: flex;
     flex-direction: column;
-    gap: 14px;
+    gap: 8px;
     border-top: 1px solid rgba(255, 255, 255, 0.08);
-    padding-top: 14px;
+    padding-top: 8px;
 }
 
 .nav-data[hidden] {
@@ -836,7 +856,17 @@ html, body {
     justify-content: space-between;
     align-items: center;
     gap: 16px;
-    min-width: 160px;
+}
+
+/* BRG / DIST / ETA as a compact 2-row table: labels on the first row, values
+   on the second. Collapses three stacked rows into two without growing wide,
+   since the values are short. */
+.nav-metrics {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    column-gap: 14px;
+    row-gap: 1px;
+    text-align: center;
 }
 
 .nav-label {
@@ -846,12 +876,17 @@ html, body {
     font-size: 11px;
 }
 
+/* Match the HUD's value sizing so all the map chrome reads as one family. */
 .nav-value {
     color: #d6d6d6;
     font-variant-numeric: tabular-nums;
     font-weight: 600;
-    font-size: 18px;
+    font-size: 15px;
     text-align: right;
+}
+
+.nav-metrics .nav-value {
+    text-align: center;
 }
 
 /* WP cell hosts prev/next arrow buttons flanking the value. */
@@ -867,10 +902,10 @@ html, body {
     border: 1px solid rgba(255, 255, 255, 0.22);
     border-radius: 5px;
     color: #d6d6d6;
-    width: 32px;
-    height: 32px;
+    width: 26px;
+    height: 26px;
     line-height: 1;
-    font-size: 22px;
+    font-size: 18px;
     padding: 0;
     cursor: pointer;
     user-select: none;
