@@ -376,6 +376,9 @@ def shot_fog(page: Page) -> None:
         }"""
     )
     page.wait_for_timeout(800)
+    # Center on the amber uncertainty ring so it sits centred and fills the
+    # frame (it's the large, signature fog element); the small symbols read as
+    # contacts within it. Break the instant a last-known ghost appears.
     framed = False
     for _ in range(45):
         framed = page.evaluate(
@@ -383,24 +386,16 @@ def shot_fog(page: Page) -> None:
               const map = window.__leafletMap;
               if (!map) return false;
               const layers = Object.values(map._layers || {});
-              const ghost = layers.find(l => l._icon && l._icon.classList
-                && l._icon.classList.contains('fog-ghost') && l._latlng);
-              if (ghost) { map.setView(ghost._latlng, 13, {animate: false}); return true; }
-              // No ghost yet: keep the two closest unit symbols (the jets) framed.
+              // entry.fogRing is an L.circle drawn in the fog ring colour.
+              const ring = layers.find(l => l.options && l.options.color === '#d8b45a'
+                && l._latlng && typeof l.getRadius === 'function');
               const units = layers.filter(l => l._latlng && l._icon && l._icon.classList
                 && l._icon.classList.contains('milsymbol'));
-              if (units.length >= 2) {
-                let best = null, bd = Infinity;
-                for (let i = 0; i < units.length; i++) for (let j = i + 1; j < units.length; j++) {
-                  const a = units[i]._latlng, b = units[j]._latlng;
-                  const d = (a.lat - b.lat) ** 2 + (a.lng - b.lng) ** 2;
-                  if (d < bd) { bd = d; best = [a, b]; }
-                }
-                if (best) map.setView([(best[0].lat + best[1].lat) / 2, (best[0].lng + best[1].lng) / 2], 13, {animate: false});
-              } else if (units.length === 1) {
-                map.setView(units[0]._latlng, 13, {animate: false});
-              }
-              return false;
+              if (ring) map.setView(ring._latlng, 13, {animate: false});
+              else if (units.length >= 1) map.setView(units[0]._latlng, 13, {animate: false});
+              const ghost = layers.find(l => l._icon && l._icon.classList
+                && l._icon.classList.contains('fog-ghost'));
+              return !!ghost;
             }"""
         )
         if framed:
@@ -422,7 +417,7 @@ SHOTS: dict[str, dict] = {
     "marks":   {"setup": shot_marks,   "viewport": (1400, 800), "clip": None},
     "threats": {"setup": shot_threats, "viewport": (1600, 900), "clip": None},
     "nav":     {"setup": shot_nav,     "viewport": (1600, 900), "clip": None},
-    "fog":     {"setup": shot_fog,     "viewport": (1600, 900), "clip": None},
+    "fog":     {"setup": shot_fog,     "viewport": (720, 540), "clip": None},
 }
 
 
