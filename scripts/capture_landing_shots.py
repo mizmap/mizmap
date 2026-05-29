@@ -355,6 +355,61 @@ def shot_nav(page: Page) -> None:
     page.wait_for_timeout(1500)
 
 
+def shot_fog(page: Page) -> None:
+    """Fog-of-war lens from the Red viewpoint: a degraded type-unknown frame +
+    dashed uncertainty ring (ENFIELD11) and a faded last-known ghost
+    (ENFIELD12), undetected units hidden.
+
+    Needs the dev mock (it serves the degraded/ghost detection picture); the
+    state is time-varying, so we frame the Blue jets and break the instant a
+    `.fog-ghost` marker appears — the start of the ~20 s ghost window.
+    """
+    close_filter_panel(page)
+    set_filters(page, {"layers": []})  # units only; no overlays/vectors/trails
+    # Fog isn't a `layers` checkbox — enable it + pick the Red viewpoint directly.
+    page.evaluate(
+        """() => {
+          const t = document.getElementById('fogToggle');
+          if (t && !t.checked) { t.checked = true; t.dispatchEvent(new Event('change', {bubbles: true})); }
+          const vp = document.getElementById('fogViewpointSel');
+          if (vp) { vp.value = '2'; vp.dispatchEvent(new Event('change', {bubbles: true})); }
+        }"""
+    )
+    page.wait_for_timeout(800)
+    framed = False
+    for _ in range(45):
+        framed = page.evaluate(
+            """() => {
+              const map = window.__leafletMap;
+              if (!map) return false;
+              const layers = Object.values(map._layers || {});
+              const ghost = layers.find(l => l._icon && l._icon.classList
+                && l._icon.classList.contains('fog-ghost') && l._latlng);
+              if (ghost) { map.setView(ghost._latlng, 13, {animate: false}); return true; }
+              // No ghost yet: keep the two closest unit symbols (the jets) framed.
+              const units = layers.filter(l => l._latlng && l._icon && l._icon.classList
+                && l._icon.classList.contains('milsymbol'));
+              if (units.length >= 2) {
+                let best = null, bd = Infinity;
+                for (let i = 0; i < units.length; i++) for (let j = i + 1; j < units.length; j++) {
+                  const a = units[i]._latlng, b = units[j]._latlng;
+                  const d = (a.lat - b.lat) ** 2 + (a.lng - b.lng) ** 2;
+                  if (d < bd) { bd = d; best = [a, b]; }
+                }
+                if (best) map.setView([(best[0].lat + best[1].lat) / 2, (best[0].lng + best[1].lng) / 2], 13, {animate: false});
+              } else if (units.length === 1) {
+                map.setView(units[0]._latlng, 13, {animate: false});
+              }
+              return false;
+            }"""
+        )
+        if framed:
+            break
+        page.wait_for_timeout(1000)
+    print(f"  [fog] ghost framed: {framed}")
+    page.wait_for_timeout(900)  # let tiles settle in the final frame
+
+
 SHOTS: dict[str, dict] = {
     "hero":    {"setup": shot_hero,    "viewport": (1600, 900), "clip": None},
     "filters": {"setup": shot_filters, "viewport": (1600, 900), "clip": None},
@@ -367,6 +422,7 @@ SHOTS: dict[str, dict] = {
     "marks":   {"setup": shot_marks,   "viewport": (1400, 800), "clip": None},
     "threats": {"setup": shot_threats, "viewport": (1600, 900), "clip": None},
     "nav":     {"setup": shot_nav,     "viewport": (1600, 900), "clip": None},
+    "fog":     {"setup": shot_fog,     "viewport": (1600, 900), "clip": None},
 }
 
 
@@ -398,7 +454,20 @@ def main() -> int:
         return 1
 
     with sync_playwright() as p:
-        browser = p.chromium.launch(channel="chrome", headless=False)
+        # Prefer an installed system browser (no chromium download). Chrome on
+        # the maintainer's box, Edge as the always-present Windows fallback,
+        # then Playwright's bundled Chromium if neither channel is installed.
+        browser = None
+        for channel in ("chrome", "msedge"):
+            try:
+                browser = p.chromium.launch(channel=channel, headless=False)
+                print(f"Using browser channel: {channel}")
+                break
+            except Exception as exc:  # noqa: BLE001
+                print(f"  channel '{channel}' unavailable: {exc}")
+        if browser is None:
+            browser = p.chromium.launch(headless=False)  # bundled Chromium
+            print("Using bundled Chromium")
         # device_scale_factor=2 captures at "Retina" density so the PNGs stay
         # sharp when viewed full-size on a high-DPI display.
         ctx = browser.new_context(

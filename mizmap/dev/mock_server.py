@@ -331,12 +331,14 @@ class MockCustomService(custom_pb2_grpc.CustomServiceServicer):
     real DCS sign convention (`parse_runways_json` negates again), so the
     rendered headings come out as commented.
 
-    Fog scenario (ids match `_build_scenario`): Blue (the player's side)
-    detects the Red SA-10 (id 3) for the first 20 s of each 30 s cycle — fully
-    classified — then loses it, exercising detected→ghost→reacquire. Red
+    Fog scenario (ids match `_build_scenario`), per 30 s cycle: Blue (the
+    player's side) detects the Red SA-10 (id 3) for the first 20 s — fully
+    classified — then loses it, exercising detected→ghost→reacquire. Red always
     detects Blue Hornet-1-1 (id 1) as type-UNKNOWN + range-unknown (degraded
-    symbol + uncertainty ring) and Hornet-1-2 (id 2) as type-known but
-    range-unknown — visible only when the viewpoint is flipped to Red.
+    symbol + uncertainty ring), and detects Hornet-1-2 (id 2, type-known +
+    range-unknown → full symbol + ring) only for the first 10 s — so the
+    *degraded* viewpoint also gets a last-known ghost when id 2 drops, not just
+    Blue's clean view. Both degraded contacts show only when viewpoint = Red.
     """
 
     # course = -radians(desired_heading); parse negates → desired heading.
@@ -364,10 +366,17 @@ class MockCustomService(custom_pb2_grpc.CustomServiceServicer):
             blue.append(
                 {"id": 3, "visible": True, "type_known": True, "distance_known": True}
             )
+        # id 1 is always detected (degraded type-unknown + range-unknown). id 2
+        # is detected only for the first 10 s of each cycle, so the degraded
+        # viewpoint shows it as a last-known ghost for the other 20 s — a long
+        # window that makes the frame+ring+ghost combination easy to observe.
         red = [
             {"id": 1, "visible": True, "type_known": False, "distance_known": False},
-            {"id": 2, "visible": True, "type_known": True, "distance_known": False},
         ]
+        if (elapsed % 30.0) < 10.0:
+            red.append(
+                {"id": 2, "visible": True, "type_known": True, "distance_known": False}
+            )
         return json.dumps({"by_coalition": {"1": [], "2": red, "3": blue}})
 
     async def Eval(
