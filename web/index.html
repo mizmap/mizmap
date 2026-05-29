@@ -69,6 +69,28 @@
                 <option value="300">5 min</option>
             </select>
         </div>
+        <div class="filter-section-label">Fog of war</div>
+        <label class="filter-row" title="Show only what the viewpoint coalition's sensors have detected"><span class="filter-name">Enable</span><input type="checkbox" id="fogToggle" /><span class="mizmap-switch-track"><span class="mizmap-switch-thumb"></span></span></label>
+        <div class="filter-row filter-row-select" id="fogViewpointRow">
+            <label for="fogViewpointSel" class="filter-sublabel">View as</label>
+            <select id="fogViewpointSel" class="filter-select">
+                <option value="auto" selected>Own ship</option>
+                <option value="3">Blue</option>
+                <option value="2">Red</option>
+                <option value="1">Neutral</option>
+            </select>
+        </div>
+        <div class="filter-row filter-row-select" id="fogMemoryRow">
+            <label for="fogMemorySel" class="filter-sublabel">Memory</label>
+            <select id="fogMemorySel" class="filter-select">
+                <option value="0">Off</option>
+                <option value="30">30 s</option>
+                <option value="60" selected>1 min</option>
+                <option value="120">2 min</option>
+                <option value="300">5 min</option>
+            </select>
+        </div>
+        <div class="filter-row-hint" id="fogHint" hidden>Set <code>evalEnabled = true</code> in dcs-grpc.lua to enable detection.</div>
         <div class="filter-section-divider"></div>
         <div class="filter-row filter-row-status">
             <span class="filter-name">MizMap</span>

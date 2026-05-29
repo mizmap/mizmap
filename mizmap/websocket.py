@@ -17,6 +17,12 @@ class WebSocketHub:
         self._clients: set[WebSocket] = set()
         self._lock = asyncio.Lock()
 
+    @property
+    def client_count(self) -> int:
+        """Number of connected browsers. Read without the lock — a stale-by-one
+        count is fine for the fog poll's "anyone listening?" gate."""
+        return len(self._clients)
+
     async def connect(self, ws: WebSocket) -> None:
         await ws.accept()
         async with self._lock:

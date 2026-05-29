@@ -322,14 +322,21 @@ class MockWorldService(world_pb2_grpc.WorldServiceServicer):
 
 
 class MockCustomService(custom_pb2_grpc.CustomServiceServicer):
-    """Minimal Eval — serves canned runway JSON for the getRunways snippet.
+    """Minimal Eval — canned runway JSON + a time-varying fog-of-war picture.
 
-    The real client uses `CustomService.Eval` for routes, elevation AND runways.
-    Only runways are mocked here (so the layer renders without real DCS); every
-    other Eval returns an empty JSON list, leaving routes/elevation empty exactly
-    as before this servicer existed. `course` is pre-negated to mirror the real
-    DCS sign convention (`parse_runways_json` negates again), so the rendered
-    headings come out as commented.
+    The real client uses `CustomService.Eval` for routes, elevation, runways
+    AND the fog-of-war detection union. Runways + fog are mocked here (so those
+    layers render without real DCS); every other Eval returns an empty JSON
+    list, leaving routes/elevation empty. `course` is pre-negated to mirror the
+    real DCS sign convention (`parse_runways_json` negates again), so the
+    rendered headings come out as commented.
+
+    Fog scenario (ids match `_build_scenario`): Blue (the player's side)
+    detects the Red SA-10 (id 3) for the first 20 s of each 30 s cycle — fully
+    classified — then loses it, exercising detected→ghost→reacquire. Red
+    detects Blue Hornet-1-1 (id 1) as type-UNKNOWN + range-unknown (degraded
+    symbol + uncertainty ring) and Hornet-1-2 (id 2) as type-known but
+    range-unknown — visible only when the viewpoint is flipped to Red.
     """
 
     # course = -radians(desired_heading); parse negates → desired heading.
@@ -346,13 +353,33 @@ class MockCustomService(custom_pb2_grpc.CustomServiceServicer):
         ]
     )
 
+    def __init__(self) -> None:
+        self._t0 = time.monotonic()
+
+    def _fog_json(self) -> str:
+        elapsed = time.monotonic() - self._t0
+        # Blue sees the Red SAM for the first 20 s of each 30 s cycle.
+        blue = []
+        if (elapsed % 30.0) < 20.0:
+            blue.append(
+                {"id": 3, "visible": True, "type_known": True, "distance_known": True}
+            )
+        red = [
+            {"id": 1, "visible": True, "type_known": False, "distance_known": False},
+            {"id": 2, "visible": True, "type_known": True, "distance_known": False},
+        ]
+        return json.dumps({"by_coalition": {"1": [], "2": red, "3": blue}})
+
     async def Eval(
         self,
         request: custom_pb2.EvalRequest,
         context: grpc.aio.ServicerContext,
     ) -> custom_pb2.EvalResponse:
-        if "getRunways" in (request.lua or ""):
+        lua = request.lua or ""
+        if "getRunways" in lua:
             return custom_pb2.EvalResponse(json=self._RUNWAYS_JSON)
+        if "getDetectedTargets" in lua:
+            return custom_pb2.EvalResponse(json=self._fog_json())
         # Routes / elevation aren't mocked — empty list keeps them blank.
         return custom_pb2.EvalResponse(json="[]")
 

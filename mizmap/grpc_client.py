@@ -23,6 +23,7 @@ from dcs.world.v0 import world_pb2, world_pb2_grpc
 
 from mizmap.airbase import Airbase, airbase_from_proto
 from mizmap.bullseye import Bullseye
+from mizmap.fog import FOG_LUA_SNIPPET, FogContact, parse_fog_json
 from mizmap.marks import Mark, mark_from_event, mark_from_proto
 from mizmap.routes import LUA_SNIPPET, GroupRoute, parse_eval_json
 from mizmap.runways import RUNWAYS_LUA_SNIPPET, Runway, parse_runways_json
@@ -175,6 +176,42 @@ class DcsGrpcClient:
         routes = parse_eval_json(resp.json)
         log.info("fetched %d group routes", len(routes))
         return routes
+
+    async def fetch_fog_contacts(
+        self, timeout: float = 4.0
+    ) -> tuple[dict[int, list[FogContact]] | None, bool]:
+        """Pull each coalition's sensor-detection set via CustomService.Eval.
+
+        Returns `(by_coalition, eval_ok)`:
+          - `(dict, True)`  — success; `dict` maps observer coalition →
+            detected contacts (may be empty when nothing is detected).
+          - `(None, False)` — Eval is disabled (`FAILED_PRECONDITION`, i.e.
+            `evalEnabled = true` is missing). Distinct so the UI can prompt the
+            user to enable it rather than silently showing nothing.
+          - `(None, True)`  — transient failure (no channel, timeout, mission
+            paused). Caller should leave existing state and retry next poll.
+
+        Unlike routes/runways the detection picture is *dynamic*, so this is
+        polled on an interval rather than fetched once. Same paused-mission
+        caveat as every Eval RPC (DCS suspends Lua while paused → timeout).
+        """
+        channel = self._channel
+        if channel is None:
+            return None, True
+        try:
+            stub = custom_pb2_grpc.CustomServiceStub(channel)
+            resp = await asyncio.wait_for(
+                stub.Eval(custom_pb2.EvalRequest(lua=FOG_LUA_SNIPPET)),
+                timeout=timeout,
+            )
+        except grpc.aio.AioRpcError as exc:
+            eval_disabled = exc.code() == grpc.StatusCode.FAILED_PRECONDITION
+            log.warning("Eval(fog) failed: %s — %s", exc.code(), exc.details())
+            return None, not eval_disabled
+        except Exception as exc:  # noqa: BLE001
+            log.warning("fetch_fog_contacts error: %s: %s", type(exc).__name__, exc)
+            return None, True
+        return parse_fog_json(resp.json), True
 
     async def fetch_bullseyes(self, timeout: float = 3.0) -> list[Bullseye] | None:
         """Pull RED + BLUE bullseyes via CoalitionService.GetBullseye.

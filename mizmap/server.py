@@ -206,6 +206,39 @@ def create_app(settings: Settings, *, open_browser: bool = False) -> FastAPI:
         state.set_marks(marks)
         await hub.broadcast(state.marks_message())
 
+    # Fog-of-war detection is *dynamic* (unlike the static routes/airbases/…
+    # which are fetched once per connect), so it's polled on an interval. The
+    # loop self-gates: fetch_fog_contacts returns (None, True) with no live
+    # channel, so it idles cheaply while disconnected, and we only spend an
+    # Eval when at least one browser is actually listening.
+    _FOG_POLL_INTERVAL_S = 1.5
+
+    async def _fog_poll_loop() -> None:
+        prev_eval_ok = True
+        while True:
+            try:
+                await asyncio.sleep(_FOG_POLL_INTERVAL_S)
+                if hub.client_count == 0:
+                    continue
+                by_coalition, eval_ok = await grpc_client.fetch_fog_contacts()
+                if by_coalition is None:
+                    if eval_ok:
+                        continue  # transient (channel down / paused) — retry
+                    # Eval disabled: surface the hint once, then stay quiet
+                    # until the flag flips (avoids spamming an empty frame).
+                    state.set_fog({}, eval_ok=False)
+                    if prev_eval_ok:
+                        await hub.broadcast(state.fog_message())
+                    prev_eval_ok = False
+                    continue
+                prev_eval_ok = True
+                state.set_fog(by_coalition, eval_ok=True)
+                await hub.broadcast(state.fog_message())
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:  # noqa: BLE001 — never let the loop die
+                log.warning("fog poll error: %s: %s", type(exc).__name__, exc)
+
     async def on_unit(p: common_pb2.Unit) -> None:
         unit = _unit_from_proto(p)
         state.upsert(unit)
@@ -223,6 +256,7 @@ def create_app(settings: Settings, *, open_browser: bool = False) -> FastAPI:
         cleared_rwy = state.clear_runways()
         cleared_nav = state.clear_navaids()
         cleared_marks = state.clear_marks()
+        state.clear_fog()
         if (cleared or cleared_routes or cleared_bull or cleared_air
                 or cleared_rwy or cleared_nav or cleared_marks):
             log.info(
@@ -243,6 +277,7 @@ def create_app(settings: Settings, *, open_browser: bool = False) -> FastAPI:
         await hub.broadcast({"type": "runways_snapshot", "runways": []})
         await hub.broadcast({"type": "navaids_snapshot", "navaids": []})
         await hub.broadcast({"type": "marks_snapshot", "marks": []})
+        await hub.broadcast(state.fog_message())
 
     async def on_mission_start() -> None:
         # New mission booted (or current mission restarted). Static data —
@@ -270,6 +305,7 @@ def create_app(settings: Settings, *, open_browser: bool = False) -> FastAPI:
         cleared_rwy = state.clear_runways()
         cleared_nav = state.clear_navaids()
         cleared_marks = state.clear_marks()
+        state.clear_fog()
         log.info(
             "mission ended — cleared %d routes, %d bullseyes, %d airbases, "
             "%d runways, %d navaids, %d marks",
@@ -286,6 +322,7 @@ def create_app(settings: Settings, *, open_browser: bool = False) -> FastAPI:
         await hub.broadcast({"type": "runways_snapshot", "runways": []})
         await hub.broadcast({"type": "navaids_snapshot", "navaids": []})
         await hub.broadcast({"type": "marks_snapshot", "marks": []})
+        await hub.broadcast(state.fog_message())
 
     async def on_mark_add(mark: Mark) -> None:
         state.upsert_mark(mark)
@@ -316,6 +353,7 @@ def create_app(settings: Settings, *, open_browser: bool = False) -> FastAPI:
     @asynccontextmanager
     async def lifespan(_: FastAPI):
         grpc_client.start()
+        fog_task = asyncio.create_task(_fog_poll_loop(), name="mizmap-fog-poll")
         if open_browser:
             # Fire-and-forget: uvicorn has already bound the port by the time
             # the lifespan startup runs, so the browser hit lands on a live
@@ -328,6 +366,11 @@ def create_app(settings: Settings, *, open_browser: bool = False) -> FastAPI:
         try:
             yield
         finally:
+            fog_task.cancel()
+            try:
+                await fog_task
+            except (asyncio.CancelledError, Exception):  # noqa: BLE001
+                pass
             await grpc_client.stop()
             await tile_cache.aclose()
 
@@ -346,6 +389,8 @@ def create_app(settings: Settings, *, open_browser: bool = False) -> FastAPI:
                 "runways": len(state.runways),
                 "navaids": len(state.navaids),
                 "marks": len(state.marks),
+                "fog_contacts": sum(len(v) for v in state.fog.values()),
+                "fog_eval_ok": state.fog_eval_ok,
             }
         )
 
@@ -501,6 +546,7 @@ def create_app(settings: Settings, *, open_browser: bool = False) -> FastAPI:
             await ws.send_json(state.runways_message())
             await ws.send_json(state.navaids_message())
             await ws.send_json(state.marks_message())
+            await ws.send_json(state.fog_message())
             while True:
                 try:
                     await ws.receive_text()

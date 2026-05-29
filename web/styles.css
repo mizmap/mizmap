@@ -673,6 +673,28 @@ html, body {
     display: none;
 }
 
+/* Fog-of-war "needs evalEnabled" hint — muted amber, mirrors filter-row-error
+   layout but advisory (the layer just stays inert) rather than an error. */
+.filter-row-hint {
+    color: #d8b45a;
+    font-size: 11px;
+    max-width: 200px;
+    word-break: break-word;
+    padding-left: 22px;
+    margin-top: 2px;
+}
+
+.filter-row-hint code {
+    font-size: 10px;
+    background: rgba(255, 255, 255, 0.08);
+    padding: 1px 3px;
+    border-radius: 3px;
+}
+
+.filter-row-hint[hidden] {
+    display: none;
+}
+
 /* "Settings…" button at the foot of the filter panel. */
 .settings-open-btn {
     margin-top: 8px;

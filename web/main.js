@@ -85,6 +85,22 @@ const NAV_LS_KEY = "mizmap.navMode";
 // ~5 m/s ≈ 10 kts: not actually moving for nav purposes.
 const NAV_ETA_MIN_SPEED_MS = 5.0;
 
+// Fog of war — an opt-in viewpoint lens. When on, non-viewpoint coalitions are
+// shown only where the viewpoint's sensors have detected them (server-side
+// getDetectedTargets union, delivered as fog_snapshot). Detection confidence
+// degrades the symbol: type-unknown → bare affiliation frame, range-unknown →
+// dashed uncertainty ring; a lost contact lingers as a fading grey "last-known"
+// ghost for the memory window, then disappears. Default OFF — it's a deliberate
+// constraint the user opts into, not the mission's enforced F10 view.
+const FOG_MEMORY_CHOICES = [0, 30, 60, 120, 300]; // seconds; 0 = no ghosts
+const FOG_MEMORY_DEFAULT_SEC = 60;
+const FOG_TICK_MS = 1000; // cadence for re-fading/aging ghosts between snapshots
+const FOG_GHOST_OPACITY_MAX = 0.7; // freshly-lost ghost
+const FOG_GHOST_OPACITY_MIN = 0.2; // about to age out of the memory window
+const FOG_GHOST_COLOR = "#9aa0a6"; // grey monochrome for last-known symbols
+const FOG_RING_RADIUS_M = 3000; // dashed "position uncertain" ring (range unknown)
+const FOG_RING_COLOR = "#d8b45a";
+
 const unitsById = new Map(); // id -> { marker, data, visible }
 const routesByGroupId = new Map(); // group_id -> { layer: L.LayerGroup, data, visible }
 const bullseyesByCoalition = new Map(); // coalition -> { marker, data, visible }
@@ -92,6 +108,18 @@ const airbasesByName = new Map(); // name -> { layer: L.LayerGroup, data, visibl
 const runwaysByKey = new Map(); // key -> { layer: L.LayerGroup, data, visible }
 const navaidsByKey = new Map(); // key -> { marker, data, visible }
 const marksById = new Map(); // id -> { marker, data, visible }
+
+// Fog-of-war runtime state. `fogContacts`: latest server snapshot keyed by
+// observer coalition (string) -> [{id, visible, type_known, distance_known}].
+// `fogMemory`: per-unit last-known detection for the ACTIVE viewpoint only
+// (cleared when the viewpoint changes) -> { rec, lastSeen(ms), gen }.
+// `fogPollGen` stamps "this snapshot"; a unit whose memory entry predates the
+// latest poll is a lost contact (ghost) rather than currently detected.
+let fogContacts = {};
+let fogEvalOk = true;
+let fogReceived = false; // gate hiding until the first fog_snapshot lands
+let fogPollGen = 0;
+const fogMemory = new Map();
 
 // DCS AirbaseCategory enum. Ships (carriers/LHAs) already render as live units
 // via StreamUnits, so the airbase layer skips them to avoid double symbols.
@@ -159,6 +187,10 @@ const FILTERS = {
     category: { 1: true, 2: true, 3: true, 4: true, 5: true },
     layers: { routes: true, bullseyes: true, airbases: true, navaids: true, marks: true, measure: true, threats: true, vectors: true, trails: true },
     trailLengthSec: TRAIL_LENGTH_DEFAULT_SEC,
+    // Fog lens is its own slice (default off) rather than a `layers` flag so it
+    // stays out of the all-layers-on→empty-hash invariant. viewpoint: "auto"
+    // (own ship) | "1"|"2"|"3" (neutral/red/blue). memorySec: ghost window.
+    fog: { on: false, viewpoint: "auto", memorySec: FOG_MEMORY_DEFAULT_SEC },
 };
 const N_LAYER_FLAGS = Object.keys(HASH_LAYER).length;
 // Set by decodeHash when the URL carries `trail=`. Init uses it to decide
@@ -189,7 +221,9 @@ let navFollowing = false;
 let navWpIndexOverride = null;
 
 function shouldShow(u) {
-    return FILTERS.coalition[u.coalition] === true && FILTERS.category[u.group.category] === true;
+    if (FILTERS.coalition[u.coalition] !== true) return false;
+    if (FILTERS.category[u.group.category] !== true) return false;
+    return fogVisInfo(u).show;
 }
 
 function shouldShowRoute(r) {
@@ -227,8 +261,278 @@ function shouldShowThreat(u) {
         FILTERS.layers.threats === true &&
         FILTERS.coalition[u.coalition] === true &&
         typeof u.threat_km === "number" &&
-        u.threat_km > 0
+        u.threat_km > 0 &&
+        // Under fog, a threat ring only shows while the unit is actively
+        // detected — a lost (ghost) or never-seen SAM mustn't leak its range.
+        fogVisInfo(u).live
     );
+}
+
+// --- fog of war (viewpoint lens) --------------------------------------------
+// fogVisInfo(u) is the single source of truth for a unit's fog state. It's
+// consulted by every visibility predicate, so it must stay cheap (map lookups).
+// `show` gates the symbol; `live` (currently detected, not a ghost) gates the
+// derived layers (threats/vectors/trails); `ghost`/`typeKnown`/`distanceUnknown`
+// /`opacity` drive degraded rendering. When the lens is inactive everything is
+// fully visible — fog never *adds* visibility, only subtracts it.
+const FOG_VIS_FULL = Object.freeze({ show: true, live: true, ghost: false, typeKnown: true, distanceUnknown: false, opacity: 1 });
+const FOG_VIS_HIDDEN = Object.freeze({ show: false, live: false, ghost: false, typeKnown: false, distanceUnknown: false, opacity: 0 });
+
+function activeViewpointCoalition() {
+    if (FILTERS.fog.viewpoint === "auto") {
+        const p = findPlayerUnit();
+        return p ? p.coalition : null;
+    }
+    const n = parseInt(FILTERS.fog.viewpoint, 10);
+    return Number.isInteger(n) ? n : null;
+}
+
+// The lens only filters once it has real data AND a resolvable viewpoint AND
+// detection is actually available (eval enabled). Otherwise it's a no-op so the
+// map never silently blanks (e.g. before the first snapshot, or auto-viewpoint
+// with no own-ship yet) — the "enable evalEnabled" hint covers the eval case.
+function fogActive() {
+    return FILTERS.fog.on && fogReceived && fogEvalOk && activeViewpointCoalition() !== null;
+}
+
+function fogVisInfo(u) {
+    if (!fogActive()) return FOG_VIS_FULL;
+    const vp = activeViewpointCoalition();
+    if (u.coalition === vp) return FOG_VIS_FULL; // own side is always fully visible
+    const mem = fogMemory.get(u.id);
+    if (!mem) return FOG_VIS_HIDDEN; // never detected by this viewpoint
+    if (mem.gen === fogPollGen) {
+        // Currently detected in the latest poll.
+        return {
+            show: true,
+            live: true,
+            ghost: false,
+            typeKnown: !!mem.rec.type_known,
+            distanceUnknown: !mem.rec.distance_known,
+            opacity: 1,
+        };
+    }
+    // Lost contact — fade a last-known ghost over the memory window.
+    const memMs = FILTERS.fog.memorySec * 1000;
+    if (memMs <= 0) return FOG_VIS_HIDDEN;
+    const ageMs = Date.now() - mem.lastSeen;
+    if (ageMs > memMs) return FOG_VIS_HIDDEN;
+    const fade = 1 - ageMs / memMs; // 1 (fresh) → 0 (about to expire)
+    return {
+        show: true,
+        live: false,
+        ghost: true,
+        typeKnown: !!mem.rec.type_known,
+        distanceUnknown: false,
+        opacity: FOG_GHOST_OPACITY_MIN + (FOG_GHOST_OPACITY_MAX - FOG_GHOST_OPACITY_MIN) * fade,
+    };
+}
+
+// Fold the latest fog_snapshot into per-unit memory for the active viewpoint.
+function ingestFog() {
+    const vp = activeViewpointCoalition();
+    if (vp === null) return;
+    fogPollGen++;
+    const now = Date.now();
+    const list = fogContacts[String(vp)] || [];
+    for (const rec of list) {
+        if (typeof rec.id !== "number") continue;
+        fogMemory.set(rec.id, { rec, lastSeen: now, gen: fogPollGen });
+    }
+    // Prune contacts that are gone AND past the memory window (or memory off).
+    const memMs = FILTERS.fog.memorySec * 1000;
+    for (const [id, mem] of fogMemory) {
+        if (mem.gen !== fogPollGen && (memMs <= 0 || now - mem.lastSeen > memMs)) {
+            fogMemory.delete(id);
+        }
+    }
+}
+
+// Viewpoint (or enable) changed — the previous observer's memory is meaningless
+// for the new one, so drop it and rebuild from the freshest snapshot.
+function resetFogViewpoint() {
+    fogMemory.clear();
+    if (fogReceived) ingestFog();
+    applyFogAll();
+}
+
+function degradeSidc(sidc) {
+    // Keep scheme + affiliation + dimension + status; blank the function ID and
+    // modifiers so milsymbol draws just the affiliation frame — the 2525C way
+    // to say "contact here, this side, type unknown."
+    if (typeof sidc !== "string" || sidc.length < 4) return sidc;
+    return sidc.slice(0, 4) + "-----------"; // 4 + 11 = 15
+}
+
+function buildGhostIcon(sidc) {
+    // Last-known position: monochrome grey so it reads as stale memory, not a
+    // live contact. The age fade is applied to the marker element (setOpacity),
+    // not baked into the symbol.
+    const symbol = new ms.Symbol(sidc, { size: SYMBOL_SIZE, monoColor: FOG_GHOST_COLOR });
+    const anchor = symbol.getAnchor();
+    return L.divIcon({
+        className: "milsymbol fog-ghost",
+        html: symbol.asSVG(),
+        iconSize: [symbol.getSize().width, symbol.getSize().height],
+        iconAnchor: [anchor.x, anchor.y],
+    });
+}
+
+function buildFogIcon(sidc, mode, selected) {
+    if (mode === "type-unknown") return buildSymbolIcon(degradeSidc(sidc), selected);
+    if (mode === "ghost") return buildGhostIcon(sidc);
+    if (mode === "ghost-unknown") return buildGhostIcon(degradeSidc(sidc));
+    return buildSymbolIcon(sidc, selected);
+}
+
+function fogIconMode(u) {
+    if (!fogActive() || u.coalition === activeViewpointCoalition()) return "real";
+    const info = fogVisInfo(u);
+    if (!info.show) return "real"; // hidden anyway — cheap default
+    if (info.ghost) return info.typeKnown ? "ghost" : "ghost-unknown";
+    if (!info.typeKnown) return "type-unknown";
+    return "real";
+}
+
+// Single funnel for all unit-icon changes (fog mode, sidc change, selection).
+// Tracks the last-applied key so we only rebuild the SVG when something
+// actually changed — icon rebuilds aren't free at scale.
+function refreshUnitIcon(entry) {
+    const u = entry.data;
+    const selected = u.id === selectedUnitId;
+    const mode = fogIconMode(u);
+    const key = `${mode}|${u.sidc}|${selected ? 1 : 0}`;
+    if (entry.fogIconKey === key) return;
+    entry.fogIconKey = key;
+    entry.marker.setIcon(buildFogIcon(u.sidc, mode, selected));
+}
+
+function applyFogRing(entry, want) {
+    const u = entry.data;
+    if (want) {
+        if (!entry.fogRing) {
+            entry.fogRing = L.circle([u.lat, u.lon], {
+                radius: FOG_RING_RADIUS_M,
+                color: FOG_RING_COLOR,
+                weight: 1.5,
+                opacity: 0.9,
+                dashArray: "4 4",
+                fill: false,
+                interactive: false,
+            });
+        } else {
+            entry.fogRing.setLatLng([u.lat, u.lon]);
+        }
+        if (!entry.fogRingVisible) {
+            entry.fogRing.addTo(map);
+            entry.fogRingVisible = true;
+        }
+    } else if (entry.fogRing && entry.fogRingVisible) {
+        entry.fogRing.remove();
+        entry.fogRingVisible = false;
+    }
+}
+
+function teardownFogRing(entry) {
+    if (!entry.fogRing) return;
+    if (entry.fogRingVisible) entry.fogRing.remove();
+    entry.fogRing = null;
+    entry.fogRingVisible = false;
+}
+
+// Apply fog rendering to one unit: icon mode, element opacity (ghost fade), and
+// the range-unknown uncertainty ring. Assumes visibility was already applied.
+function applyFogStyle(entry) {
+    const u = entry.data;
+    const info = fogVisInfo(u);
+    refreshUnitIcon(entry);
+    const opacity = info.show ? info.opacity : 1;
+    if (entry.fogOpacity !== opacity) {
+        entry.marker.setOpacity(opacity);
+        entry.fogOpacity = opacity;
+    }
+    const wantRing =
+        fogActive() &&
+        info.show &&
+        info.live &&
+        info.distanceUnknown &&
+        u.coalition !== activeViewpointCoalition();
+    applyFogRing(entry, wantRing);
+}
+
+function applyFogAll() {
+    for (const entry of unitsById.values()) {
+        applyVisibility(entry);
+        applyFogStyle(entry);
+        applyThreatVisibility(entry);
+        applyVectorVisibility(entry);
+        applyTrailVisibility(entry);
+    }
+    updateFogHint();
+}
+
+function updateFogHint() {
+    const hint = document.getElementById("fogHint");
+    if (hint) hint.hidden = !(FILTERS.fog.on && !fogEvalOk);
+}
+
+function applyFogSnapshot(msg) {
+    fogContacts = msg.by_coalition || {};
+    fogEvalOk = msg.eval_ok !== false;
+    fogReceived = true;
+    if (FILTERS.fog.on) {
+        ingestFog();
+        applyFogAll();
+    } else {
+        updateFogHint();
+    }
+}
+
+function syncFogControls() {
+    const t = document.getElementById("fogToggle");
+    const vp = document.getElementById("fogViewpointSel");
+    const mem = document.getElementById("fogMemorySel");
+    if (t) t.checked = FILTERS.fog.on;
+    if (vp) vp.value = FILTERS.fog.viewpoint;
+    if (mem) mem.value = String(FILTERS.fog.memorySec);
+    const off = !FILTERS.fog.on;
+    if (vp) vp.disabled = off;
+    if (mem) mem.disabled = off;
+    const vpRow = document.getElementById("fogViewpointRow");
+    if (vpRow) vpRow.classList.toggle("filter-row-disabled", off);
+    const memRow = document.getElementById("fogMemoryRow");
+    if (memRow) memRow.classList.toggle("filter-row-disabled", off);
+    updateFogHint();
+}
+
+function wireFogControls() {
+    const t = document.getElementById("fogToggle");
+    const vp = document.getElementById("fogViewpointSel");
+    const mem = document.getElementById("fogMemorySel");
+    if (t) {
+        t.addEventListener("change", () => {
+            FILTERS.fog.on = t.checked;
+            encodeHash();
+            syncFogControls();
+            resetFogViewpoint();
+        });
+    }
+    if (vp) {
+        vp.addEventListener("change", () => {
+            FILTERS.fog.viewpoint = vp.value;
+            encodeHash();
+            resetFogViewpoint();
+        });
+    }
+    if (mem) {
+        mem.addEventListener("change", () => {
+            const n = parseInt(mem.value, 10);
+            if (!FOG_MEMORY_CHOICES.includes(n)) return;
+            FILTERS.fog.memorySec = n;
+            encodeHash();
+            applyFogAll();
+        });
+    }
 }
 
 function encodeView() {
@@ -257,6 +561,12 @@ function encodeHash() {
     if (!filtersAllOn) parts.push(`coal=${c}`, `cat=${g}`, `layers=${l}`);
     if (FILTERS.trailLengthSec !== TRAIL_LENGTH_DEFAULT_SEC) {
         parts.push(`trail=${FILTERS.trailLengthSec}`);
+    }
+    if (FILTERS.fog.on) {
+        parts.push(`fog=${FILTERS.fog.viewpoint}`);
+        if (FILTERS.fog.memorySec !== FOG_MEMORY_DEFAULT_SEC) {
+            parts.push(`fogmem=${FILTERS.fog.memorySec}`);
+        }
     }
     if (view) parts.push(`view=${view}`);
     const url =
@@ -302,6 +612,16 @@ function decodeHash() {
             trailLengthSetByHash = true;
         }
     }
+    const fogStr = params.get("fog");
+    if (fogStr !== null) {
+        FILTERS.fog.on = true;
+        if (["auto", "1", "2", "3"].includes(fogStr)) FILTERS.fog.viewpoint = fogStr;
+    }
+    const fogMemStr = params.get("fogmem");
+    if (fogMemStr !== null) {
+        const n = parseInt(fogMemStr, 10);
+        if (FOG_MEMORY_CHOICES.includes(n)) FILTERS.fog.memorySec = n;
+    }
     const viewStr = params.get("view");
     if (viewStr !== null) {
         const m = viewStr.match(/^(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?),(\d+(?:\.\d+)?)$/);
@@ -339,7 +659,9 @@ function writeTrailLengthToStorage(v) {
 }
 
 function syncCheckboxesFromFilters() {
-    for (const cb of document.querySelectorAll("#filters input[type=checkbox]")) {
+    // [data-filter] scopes this to coalition/category/layer toggles — the fog
+    // toggle has no data-filter and is handled by syncFogControls().
+    for (const cb of document.querySelectorAll("#filters input[type=checkbox][data-filter]")) {
         const kind = cb.dataset.filter;
         const val = cb.dataset.value;
         cb.checked = FILTERS[kind][val] === true;
@@ -354,7 +676,8 @@ function syncCheckboxesFromFilters() {
 }
 
 function wireFilterCheckboxes() {
-    for (const cb of document.querySelectorAll("#filters input[type=checkbox]")) {
+    // [data-filter] excludes the fog toggle (wired separately in wireFogControls).
+    for (const cb of document.querySelectorAll("#filters input[type=checkbox][data-filter]")) {
         cb.addEventListener("change", () => {
             const kind = cb.dataset.filter;
             const val = cb.dataset.value;
@@ -861,17 +1184,14 @@ function upsertUnit(u) {
     const existing = unitsById.get(u.id);
     if (existing) {
         existing.marker.setLatLng([u.lat, u.lon]);
-        // Rebuild icon only if SIDC changed (affiliation/category shift).
-        // Preserve selected state through the rebuild.
-        if (existing.data.sidc !== u.sidc) {
-            existing.marker.setIcon(
-                buildSymbolIcon(u.sidc, existing.data.id === selectedUnitId),
-            );
-        }
         existing.marker.setTooltipContent(tooltipFor(u));
         const prevThreat = existing.data.threat_km;
         existing.data = u;
         applyVisibility(existing);
+        // Fog rendering (icon mode / opacity / uncertainty ring) tracks the
+        // fresh data; refreshUnitIcon inside also rebuilds the icon on a SIDC
+        // change (affiliation/category shift), preserving selection state.
+        applyFogStyle(existing);
         // Threat ring: rebuild on threat_km change (rare — type-bound), else
         // just move it. Move first, then re-evaluate visibility.
         if (prevThreat !== u.threat_km) {
@@ -915,9 +1235,16 @@ function upsertUnit(u) {
         trailGroup: null,
         trailSegments: null,
         trailVisible: false,
+        // Fog: icon-key starts at the real (unselected) icon we just built, so
+        // refreshUnitIcon is a no-op unless the lens degrades this unit.
+        fogIconKey: `real|${u.sidc}|0`,
+        fogOpacity: 1,
+        fogRing: null,
+        fogRingVisible: false,
     };
     unitsById.set(u.id, entry);
     applyVisibility(entry);
+    applyFogStyle(entry);
     buildThreatRing(entry);
     applyThreatVisibility(entry);
     applyVectorVisibility(entry);
@@ -934,8 +1261,10 @@ function removeUnit(id) {
         teardownThreatRing(entry);
         teardownVector(entry);
         teardownTrail(entry);
+        teardownFogRing(entry);
         unitsById.delete(id);
     }
+    fogMemory.delete(id);
     if (selectedUnitId === id) {
         selectedUnitId = null;
         refreshTelemetry();
@@ -1030,6 +1359,8 @@ function projectLatLon(lat, lon, bearingRad, distanceM) {
 function shouldShowVector(entry) {
     if (!entry.visible) return false;
     if (FILTERS.layers.vectors !== true) return false;
+    // No live velocity knowledge for a ghost/undetected contact under fog.
+    if (!fogVisInfo(entry.data).live) return false;
     const speed = entry.data.speed;
     return typeof speed === "number" && speed >= VECTOR_MIN_SPEED_MS;
 }
@@ -1105,6 +1436,8 @@ function recordTrailPosition(entry, lat, lon) {
 function shouldShowTrail(entry) {
     if (!entry.visible) return false;
     if (FILTERS.layers.trails !== true) return false;
+    // A ghost/undetected contact shouldn't trail its live path under fog.
+    if (!fogVisInfo(entry.data).live) return false;
     return (entry.trailPositions?.length ?? 0) >= 2;
 }
 
@@ -1192,8 +1525,12 @@ function applySnapshot(units) {
         teardownThreatRing(entry);
         teardownVector(entry);
         teardownTrail(entry);
+        teardownFogRing(entry);
     }
     unitsById.clear();
+    // A snapshot replace can be a mission change — the old viewpoint's
+    // detection memory no longer maps to live units.
+    fogMemory.clear();
     // A snapshot replace can be a mission change; the previously-selected
     // id may no longer correspond to a real unit. Clear selection; the next
     // refreshTelemetry (from incoming unit_updates) will fall back to own
@@ -2107,18 +2444,18 @@ function selectUnit(id) {
     if (!entry) return;
     selectedUnitId = id;
     setStickyTooltip(entry.marker, true);
-    entry.marker.setIcon(buildSymbolIcon(entry.data.sidc, true));
+    refreshUnitIcon(entry); // key includes selection → rebuilds (fog-aware)
     refreshTelemetry();
 }
 
 function deselectUnit() {
     if (selectedUnitId === null) return;
     const entry = unitsById.get(selectedUnitId);
+    selectedUnitId = null; // clear before refresh so the icon comes back unselected
     if (entry) {
         setStickyTooltip(entry.marker, false);
-        entry.marker.setIcon(buildSymbolIcon(entry.data.sidc, false));
+        refreshUnitIcon(entry);
     }
-    selectedUnitId = null;
     refreshTelemetry();
 }
 
@@ -2332,6 +2669,9 @@ function connectWebSocket() {
                 case "mark_removed":
                     removeMark(msg.id);
                     break;
+                case "fog_snapshot":
+                    applyFogSnapshot(msg);
+                    break;
                 default:
                     console.debug("unhandled message", msg);
             }
@@ -2357,6 +2697,14 @@ function connectWebSocket() {
     if (navEls.toggle) navEls.toggle.checked = navModeOn;
     syncCheckboxesFromFilters();
     wireFilterCheckboxes();
+    syncFogControls();
+    wireFogControls();
+    // Re-fade/expire fog ghosts between snapshots (snapshots only refresh the
+    // currently-detected set; aging is purely time-based). Cheap no-op unless
+    // the lens is on with a memory window.
+    setInterval(() => {
+        if (FILTERS.fog.on && fogReceived && FILTERS.fog.memorySec > 0) applyFogAll();
+    }, FOG_TICK_MS);
     const config = await loadConfig();
     map = buildMap(config);
     // Measurement was on left-click in earlier versions; moved to middle-click

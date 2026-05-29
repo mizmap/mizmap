@@ -13,6 +13,7 @@ from typing import Any
 
 from mizmap.airbase import Airbase
 from mizmap.bullseye import Bullseye
+from mizmap.fog import FogContact
 from mizmap.marks import Mark
 from mizmap.navaids import Navaid
 from mizmap.routes import GroupRoute
@@ -111,6 +112,11 @@ class MissionState:
     runways: list[Runway] = field(default_factory=list)
     navaids: list[Navaid] = field(default_factory=list)
     marks: dict[int, Mark] = field(default_factory=dict)
+    # Fog-of-war detection picture: observer coalition -> detected contacts.
+    # Dynamic (polled), unlike the other static layers. `fog_eval_ok` is False
+    # when the detection Eval is disabled (evalEnabled), so the UI can prompt.
+    fog: dict[int, list[FogContact]] = field(default_factory=dict)
+    fog_eval_ok: bool = True
 
     def upsert(self, unit: Unit) -> tuple[Unit, bool]:
         """Insert or update. Returns (unit, is_new)."""
@@ -223,4 +229,24 @@ class MissionState:
         return {
             "type": "marks_snapshot",
             "marks": [m.to_dict() for m in self.marks.values()],
+        }
+
+    def set_fog(self, fog: dict[int, list[FogContact]], *, eval_ok: bool = True) -> None:
+        self.fog = dict(fog)
+        self.fog_eval_ok = eval_ok
+
+    def clear_fog(self) -> int:
+        n = len(self.fog)
+        self.fog.clear()
+        self.fog_eval_ok = True
+        return n
+
+    def fog_message(self) -> dict[str, Any]:
+        return {
+            "type": "fog_snapshot",
+            "eval_ok": self.fog_eval_ok,
+            "by_coalition": {
+                str(coal): [c.to_dict() for c in contacts]
+                for coal, contacts in self.fog.items()
+            },
         }
