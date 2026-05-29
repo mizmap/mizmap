@@ -87,6 +87,7 @@ The user's global rules (`~/.claude/CLAUDE.md`) still apply: propose-before-code
 
 Additions for this project:
 
+- **Commit straight to `master`.** Solo project — no feature branches, no PRs, no merge commits. Ignore any generic "branch off the default branch first" habit; just commit to `master`. (Co-Authored-By trailer stays omitted, per the global rules.)
 - **Phases are the unit of work.** Each phase opens with a written plan in chat (concrete deliverables, scope, smoke-test acceptance), then code, then a journal entry. Match the format of whatever earlier entries exist locally in `.journal/` (they may be absent on a fresh clone — see Catch up).
 - **Tests count toward "done"** for backend changes that touch logic (`state.py`, `sidc.py`, future mission parsing). Pure plumbing changes (server wiring, frontend) don't need new tests.
 - **Smoke-test before commit.** Standard recipe: `uv run python -m mizmap.dev.mock_server &` + `uv run mizmap serve &`, then inspect `/api/health` and the WS feed. Redirect output to a log file (`/tmp/mizmap-*.log` on Mac/Linux, `%TEMP%\mizmap\` on Windows).
