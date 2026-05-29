@@ -364,24 +364,31 @@ def shot_fog(page: Page) -> None:
     state is time-varying, so we frame the Blue jets and break the instant a
     `.fog-ghost` marker appears — the start of the ~20 s ghost window.
     """
-    close_filter_panel(page)
-    set_filters(page, {"layers": []})  # units only; no overlays/vectors/trails
-    # Fog isn't a `layers` checkbox — enable it + pick the Red viewpoint directly.
+    open_filter_panel(page)
+    set_filters(page, {"layers": []})  # units only; clean map for the lens
+    # Fog isn't a `layers` checkbox — enable it + pick the Red viewpoint, then
+    # scroll the panel to its Fog-of-war section so the toggle + options show.
     page.evaluate(
         """() => {
           const t = document.getElementById('fogToggle');
           if (t && !t.checked) { t.checked = true; t.dispatchEvent(new Event('change', {bubbles: true})); }
           const vp = document.getElementById('fogViewpointSel');
           if (vp) { vp.value = '2'; vp.dispatchEvent(new Event('change', {bubbles: true})); }
+          const panel = document.getElementById('filters');
+          const fogLabel = [...document.querySelectorAll('#filters .filter-section-label')]
+            .find(el => /Fog of war/i.test(el.textContent));
+          if (panel && fogLabel) panel.scrollTop = Math.max(0, fogLabel.offsetTop - 8);
         }"""
     )
     page.wait_for_timeout(800)
-    # Center on the amber uncertainty ring so it sits centred and fills the
-    # frame (it's the large, signature fog element); the small symbols read as
-    # contacts within it. Break the instant a last-known ghost appears.
+    # Center on the amber uncertainty ring (the large, signature fog element)
+    # so it sits centred; the small symbols read as contacts within it. Break on
+    # a *fresh* ghost (false->true transition) so the screenshot lands early in
+    # the ~20 s ghost window with plenty of margin before it reacquires.
     framed = False
-    for _ in range(45):
-        framed = page.evaluate(
+    prev = None
+    for _ in range(50):
+        has_ghost = page.evaluate(
             """() => {
               const map = window.__leafletMap;
               if (!map) return false;
@@ -393,15 +400,16 @@ def shot_fog(page: Page) -> None:
                 && l._icon.classList.contains('milsymbol'));
               if (ring) map.setView(ring._latlng, 13, {animate: false});
               else if (units.length >= 1) map.setView(units[0]._latlng, 13, {animate: false});
-              const ghost = layers.find(l => l._icon && l._icon.classList
+              return !!layers.find(l => l._icon && l._icon.classList
                 && l._icon.classList.contains('fog-ghost'));
-              return !!ghost;
             }"""
         )
-        if framed:
+        if prev is False and has_ghost:  # fresh ghost → maximum margin
+            framed = True
             break
+        prev = has_ghost
         page.wait_for_timeout(1000)
-    print(f"  [fog] ghost framed: {framed}")
+    print(f"  [fog] fresh ghost framed: {framed}")
     page.wait_for_timeout(900)  # let tiles settle in the final frame
 
 
@@ -417,7 +425,7 @@ SHOTS: dict[str, dict] = {
     "marks":   {"setup": shot_marks,   "viewport": (1400, 800), "clip": None},
     "threats": {"setup": shot_threats, "viewport": (1600, 900), "clip": None},
     "nav":     {"setup": shot_nav,     "viewport": (1600, 900), "clip": None},
-    "fog":     {"setup": shot_fog,     "viewport": (720, 540), "clip": None},
+    "fog":     {"setup": shot_fog,     "viewport": (1040, 780), "clip": None},
 }
 
 
