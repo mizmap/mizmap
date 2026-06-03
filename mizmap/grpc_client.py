@@ -407,11 +407,24 @@ class DcsGrpcClient:
         """Return the magnetic declination (degrees) at a lat/lon/alt, or None.
 
         Direct `CustomService.GetMagneticDeclination` RPC — no Eval involved,
-        no `evalEnabled` config dependency. DCS-gRPC computes via the IGRF
-        model. Sign convention per the proto: positive = easterly declination
-        (magnetic north is east of true north), negative = westerly.
-        `True North + declination = Magnetic North`, so to convert a true
-        bearing to magnetic: `bearing_M = bearing_T - declination`.
+        no `evalEnabled` config dependency. DCS-gRPC computes this itself with
+        its own IGRF model (DCS doesn't expose its native value).
+
+        **Sign correction (negation below).** DCS-gRPC 0.8.1 returns the value
+        with the sign *inverted* relative to its own proto contract, which
+        documents positive = easterly. Verified empirically against 8 globally
+        distributed points spanning both hemispheres and both signs: the IGRF
+        magnitude is right to a few tenths but the sign is flipped at every one
+        (e.g. real Las Vegas +11.5°E → −12.1, real São Paulo −21.5°W → +20.7,
+        real Kandahar +2.9°E → −2.29 — the last matching the in-game F10 compass
+        rose "M +2.9"). Without correcting it, the telemetry HUD heading and the
+        BRA tool come out ~2×declination off the cockpit (~5° in Afghanistan).
+        See proto/UPSTREAM.md; re-test on any DCS-gRPC bump (issue #197 wants to
+        replace the IGRF impl with DCS's native API, which may fix the sign and
+        make this negation wrong).
+
+        With the corrected sign, `True North + declination = Magnetic North`, so
+        to convert a true bearing to magnetic: `bearing_M = bearing_T - declination`.
         """
         channel = self._channel
         if channel is None:
@@ -430,7 +443,8 @@ class DcsGrpcClient:
         except Exception as exc:  # noqa: BLE001
             log.warning("fetch_declination error: %s: %s", type(exc).__name__, exc)
             return None
-        return float(resp.declination)
+        # Negate: DCS-gRPC 0.8.1 reports the sign inverted vs its proto (see docstring).
+        return -float(resp.declination)
 
     async def _consume_units(self, channel: grpc.aio.Channel) -> None:
         """Stream units and dispatch each frame. Returns on disconnect."""
