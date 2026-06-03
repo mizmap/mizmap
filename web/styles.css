@@ -1110,7 +1110,11 @@ html, body {
 
 .mizmap-switch-thumb {
     position: absolute;
-    top: 1px;
+    /* 2px (not 1) vertically centers the thumb: the track is content-box, so its
+       rendered height is content + 2px border, leaving a 4px content-minus-thumb
+       gap that splits evenly only at top:2px. Holds for every size variant
+       (base 20px, nav/touch 24px) — each has the same 2px border + 4px gap. */
+    top: 2px;
     left: 1px;
     width: 16px;
     height: 16px;
