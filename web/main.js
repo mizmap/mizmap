@@ -83,6 +83,10 @@ const TRAIL_WEIGHT = 3;
 const TRAIL_OPACITY_NEWEST = 0.95;
 const TRAIL_OPACITY_OLDEST = 0.30;
 const TRAIL_LS_KEY = "mizmap.trailLengthSec";
+// Collapsed/expanded state of the filter-panel disclosure sections, keyed by
+// the section's data-section value. HTML sets the smart defaults (Basemap +
+// Fog of war collapsed); a saved entry overrides per section.
+const SECTIONS_LS_KEY = "mizmap.sections";
 
 // Navigation mode — when on, the map follows the player and a panel shows
 // route metrics for the next waypoint. Persisted across reloads.
@@ -2958,6 +2962,7 @@ function connectWebSocket() {
     for (const btn of document.querySelectorAll(".measure-copy")) {
         btn.addEventListener("click", handleCopyClick);
     }
+    wireCollapsibleSections();
     wireKneeboardControls();
     wireSettings();
     connectWebSocket();
@@ -3094,6 +3099,48 @@ function wireSettings() {
 // on the button via the `kb-armed` class. No-op when the buttons are hidden
 // (i.e. main view).
 let kbMeasureArmed = false;
+
+function readSectionStateFromStorage() {
+    try {
+        const raw = localStorage.getItem(SECTIONS_LS_KEY);
+        const parsed = raw ? JSON.parse(raw) : null;
+        return parsed && typeof parsed === "object" ? parsed : {};
+    } catch {
+        // Private-mode browsers can throw or store junk. Treat as "no preference."
+        return {};
+    }
+}
+
+function writeSectionStateToStorage(state) {
+    try {
+        localStorage.setItem(SECTIONS_LS_KEY, JSON.stringify(state));
+    } catch {
+        // localStorage may be unavailable (private mode, quota). Best-effort.
+    }
+}
+
+// Filter-panel groups are disclosure sections: clicking a header collapses or
+// expands its body. HTML carries the smart defaults; a remembered choice (per
+// section) wins over the default and persists across reloads.
+function wireCollapsibleSections() {
+    const saved = readSectionStateFromStorage();
+    for (const section of document.querySelectorAll("#filters .filter-section")) {
+        const key = section.dataset.section;
+        const header = section.querySelector(".filter-section-header");
+        if (!key || !header) continue;
+        if (key in saved) {
+            section.classList.toggle("collapsed", saved[key] === true);
+        }
+        header.setAttribute("aria-expanded", String(!section.classList.contains("collapsed")));
+        header.addEventListener("click", () => {
+            const collapsed = section.classList.toggle("collapsed");
+            header.setAttribute("aria-expanded", String(!collapsed));
+            const state = readSectionStateFromStorage();
+            state[key] = collapsed;
+            writeSectionStateToStorage(state);
+        });
+    }
+}
 
 function wireKneeboardControls() {
     const menuBtn = document.getElementById("kbMenuBtn");

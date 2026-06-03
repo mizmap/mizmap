@@ -50,16 +50,48 @@ html, body {
     display: none;
 }
 
+/* Each group's label is now a full-width disclosure header (button) that
+   toggles a collapsible body. Multiple sections can be open at once. */
+.filter-section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    width: 100%;
+    box-sizing: border-box;
+    background: none;
+    border: none;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+    padding: 5px 0 3px;
+}
+
 .filter-section-label {
     color: #9aa0a6;
     text-transform: uppercase;
     letter-spacing: 0.06em;
     font-size: 10px;
-    padding: 4px 0 2px;
 }
 
-.filter-section-label + .filter-row {
-    padding-top: 2px;
+.filter-section-chevron {
+    flex: none;
+    color: #9aa0a6;
+    transition: transform 120ms ease-out;
+}
+
+.filter-section-header:hover .filter-section-label,
+.filter-section-header:hover .filter-section-chevron {
+    color: #c8ccd0;
+}
+
+/* Instant collapse — body hidden, chevron points right. */
+.filter-section.collapsed .filter-section-body {
+    display: none;
+}
+
+.filter-section.collapsed .filter-section-chevron {
+    transform: rotate(-90deg);
 }
 
 .filter-row {
@@ -568,9 +600,12 @@ html, body {
     .filter-row input:checked + .mizmap-switch-track .mizmap-switch-thumb {
         transform: translateX(20px);
     }
+    /* Larger header tap target on touch; label text bumps to match. */
+    .filter-section-header {
+        padding: 9px 0 5px;
+    }
     .filter-section-label {
         font-size: 11px;
-        padding: 8px 0 4px;
     }
     .filter-select {
         font-size: 13px;

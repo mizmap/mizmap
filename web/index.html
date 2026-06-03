@@ -39,63 +39,98 @@
     </button>
 
     <div id="filters">
-        <div class="filter-section-label">Coalition</div>
-        <label class="filter-row"><span class="filter-name">Blue</span><input type="checkbox" data-filter="coalition" data-value="3" checked /><span class="mizmap-switch-track"><span class="mizmap-switch-thumb"></span></span></label>
-        <label class="filter-row"><span class="filter-name">Red</span><input type="checkbox" data-filter="coalition" data-value="2" checked /><span class="mizmap-switch-track"><span class="mizmap-switch-thumb"></span></span></label>
-        <label class="filter-row"><span class="filter-name">Neutral</span><input type="checkbox" data-filter="coalition" data-value="1" checked /><span class="mizmap-switch-track"><span class="mizmap-switch-thumb"></span></span></label>
-        <div class="filter-section-label">Category</div>
-        <label class="filter-row"><span class="filter-name">Plane</span><input type="checkbox" data-filter="category" data-value="1" checked /><span class="mizmap-switch-track"><span class="mizmap-switch-thumb"></span></span></label>
-        <label class="filter-row"><span class="filter-name">Helo</span><input type="checkbox" data-filter="category" data-value="2" checked /><span class="mizmap-switch-track"><span class="mizmap-switch-thumb"></span></span></label>
-        <label class="filter-row"><span class="filter-name">Ground</span><input type="checkbox" data-filter="category" data-value="3" checked /><span class="mizmap-switch-track"><span class="mizmap-switch-thumb"></span></span></label>
-        <label class="filter-row"><span class="filter-name">Ship</span><input type="checkbox" data-filter="category" data-value="4" checked /><span class="mizmap-switch-track"><span class="mizmap-switch-thumb"></span></span></label>
-        <label class="filter-row"><span class="filter-name">Train</span><input type="checkbox" data-filter="category" data-value="5" checked /><span class="mizmap-switch-track"><span class="mizmap-switch-thumb"></span></span></label>
-        <div class="filter-section-label">Layers</div>
-        <label class="filter-row"><span class="filter-name">Routes</span><input type="checkbox" data-filter="layers" data-value="routes" checked /><span class="mizmap-switch-track"><span class="mizmap-switch-thumb"></span></span></label>
-        <label class="filter-row"><span class="filter-name">Bullseyes</span><input type="checkbox" data-filter="layers" data-value="bullseyes" checked /><span class="mizmap-switch-track"><span class="mizmap-switch-thumb"></span></span></label>
-        <label class="filter-row"><span class="filter-name">Airbases</span><input type="checkbox" data-filter="layers" data-value="airbases" checked /><span class="mizmap-switch-track"><span class="mizmap-switch-thumb"></span></span></label>
-        <label class="filter-row"><span class="filter-name">Navaids</span><input type="checkbox" data-filter="layers" data-value="navaids" checked /><span class="mizmap-switch-track"><span class="mizmap-switch-thumb"></span></span></label>
-        <label class="filter-row"><span class="filter-name">Map marks</span><input type="checkbox" data-filter="layers" data-value="marks" checked /><span class="mizmap-switch-track"><span class="mizmap-switch-thumb"></span></span></label>
-        <label class="filter-row"><span class="filter-name">Measure</span><input type="checkbox" data-filter="layers" data-value="measure" checked /><span class="mizmap-switch-track"><span class="mizmap-switch-thumb"></span></span></label>
-        <label class="filter-row"><span class="filter-name">Threats</span><input type="checkbox" data-filter="layers" data-value="threats" checked /><span class="mizmap-switch-track"><span class="mizmap-switch-thumb"></span></span></label>
-        <label class="filter-row"><span class="filter-name">Vectors</span><input type="checkbox" data-filter="layers" data-value="vectors" checked /><span class="mizmap-switch-track"><span class="mizmap-switch-thumb"></span></span></label>
-        <label class="filter-row"><span class="filter-name">Trails</span><input type="checkbox" data-filter="layers" data-value="trails" checked /><span class="mizmap-switch-track"><span class="mizmap-switch-thumb"></span></span></label>
-        <div class="filter-row filter-row-select" id="trailLengthRow">
-            <label for="trailLengthSel" class="filter-sublabel">Length</label>
-            <select id="trailLengthSel" class="filter-select">
-                <option value="15">15 s</option>
-                <option value="30">30 s</option>
-                <option value="60" selected>1 min</option>
-                <option value="120">2 min</option>
-                <option value="300">5 min</option>
-            </select>
+        <div class="filter-section" data-section="coalition">
+            <button type="button" class="filter-section-header" aria-expanded="true" aria-controls="sec-coalition">
+                <span class="filter-section-label">Coalition</span>
+                <svg class="filter-section-chevron" viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4 6 4 4 4-4"/></svg>
+            </button>
+            <div class="filter-section-body" id="sec-coalition">
+                <label class="filter-row"><span class="filter-name">Blue</span><input type="checkbox" data-filter="coalition" data-value="3" checked /><span class="mizmap-switch-track"><span class="mizmap-switch-thumb"></span></span></label>
+                <label class="filter-row"><span class="filter-name">Red</span><input type="checkbox" data-filter="coalition" data-value="2" checked /><span class="mizmap-switch-track"><span class="mizmap-switch-thumb"></span></span></label>
+                <label class="filter-row"><span class="filter-name">Neutral</span><input type="checkbox" data-filter="coalition" data-value="1" checked /><span class="mizmap-switch-track"><span class="mizmap-switch-thumb"></span></span></label>
+            </div>
         </div>
-        <div class="filter-section-label">Basemap</div>
-        <div class="filter-row filter-row-select">
-            <label for="basemapSel" class="filter-sublabel">Style</label>
-            <select id="basemapSel" class="filter-select"></select>
+        <div class="filter-section" data-section="category">
+            <button type="button" class="filter-section-header" aria-expanded="true" aria-controls="sec-category">
+                <span class="filter-section-label">Category</span>
+                <svg class="filter-section-chevron" viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4 6 4 4 4-4"/></svg>
+            </button>
+            <div class="filter-section-body" id="sec-category">
+                <label class="filter-row"><span class="filter-name">Plane</span><input type="checkbox" data-filter="category" data-value="1" checked /><span class="mizmap-switch-track"><span class="mizmap-switch-thumb"></span></span></label>
+                <label class="filter-row"><span class="filter-name">Helo</span><input type="checkbox" data-filter="category" data-value="2" checked /><span class="mizmap-switch-track"><span class="mizmap-switch-thumb"></span></span></label>
+                <label class="filter-row"><span class="filter-name">Ground</span><input type="checkbox" data-filter="category" data-value="3" checked /><span class="mizmap-switch-track"><span class="mizmap-switch-thumb"></span></span></label>
+                <label class="filter-row"><span class="filter-name">Ship</span><input type="checkbox" data-filter="category" data-value="4" checked /><span class="mizmap-switch-track"><span class="mizmap-switch-thumb"></span></span></label>
+                <label class="filter-row"><span class="filter-name">Train</span><input type="checkbox" data-filter="category" data-value="5" checked /><span class="mizmap-switch-track"><span class="mizmap-switch-thumb"></span></span></label>
+            </div>
         </div>
-        <div class="filter-section-label">Fog of war</div>
-        <label class="filter-row" title="Show only what the viewpoint coalition's sensors have detected"><span class="filter-name">Enable</span><input type="checkbox" id="fogToggle" /><span class="mizmap-switch-track"><span class="mizmap-switch-thumb"></span></span></label>
-        <div class="filter-row filter-row-select" id="fogViewpointRow">
-            <label for="fogViewpointSel" class="filter-sublabel">View as</label>
-            <select id="fogViewpointSel" class="filter-select">
-                <option value="auto" selected>Own ship</option>
-                <option value="3">Blue</option>
-                <option value="2">Red</option>
-                <option value="1">Neutral</option>
-            </select>
+        <div class="filter-section" data-section="layers">
+            <button type="button" class="filter-section-header" aria-expanded="true" aria-controls="sec-layers">
+                <span class="filter-section-label">Layers</span>
+                <svg class="filter-section-chevron" viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4 6 4 4 4-4"/></svg>
+            </button>
+            <div class="filter-section-body" id="sec-layers">
+                <label class="filter-row"><span class="filter-name">Routes</span><input type="checkbox" data-filter="layers" data-value="routes" checked /><span class="mizmap-switch-track"><span class="mizmap-switch-thumb"></span></span></label>
+                <label class="filter-row"><span class="filter-name">Bullseyes</span><input type="checkbox" data-filter="layers" data-value="bullseyes" checked /><span class="mizmap-switch-track"><span class="mizmap-switch-thumb"></span></span></label>
+                <label class="filter-row"><span class="filter-name">Airbases</span><input type="checkbox" data-filter="layers" data-value="airbases" checked /><span class="mizmap-switch-track"><span class="mizmap-switch-thumb"></span></span></label>
+                <label class="filter-row"><span class="filter-name">Navaids</span><input type="checkbox" data-filter="layers" data-value="navaids" checked /><span class="mizmap-switch-track"><span class="mizmap-switch-thumb"></span></span></label>
+                <label class="filter-row"><span class="filter-name">Map marks</span><input type="checkbox" data-filter="layers" data-value="marks" checked /><span class="mizmap-switch-track"><span class="mizmap-switch-thumb"></span></span></label>
+                <label class="filter-row"><span class="filter-name">Measure</span><input type="checkbox" data-filter="layers" data-value="measure" checked /><span class="mizmap-switch-track"><span class="mizmap-switch-thumb"></span></span></label>
+                <label class="filter-row"><span class="filter-name">Threats</span><input type="checkbox" data-filter="layers" data-value="threats" checked /><span class="mizmap-switch-track"><span class="mizmap-switch-thumb"></span></span></label>
+                <label class="filter-row"><span class="filter-name">Vectors</span><input type="checkbox" data-filter="layers" data-value="vectors" checked /><span class="mizmap-switch-track"><span class="mizmap-switch-thumb"></span></span></label>
+                <label class="filter-row"><span class="filter-name">Trails</span><input type="checkbox" data-filter="layers" data-value="trails" checked /><span class="mizmap-switch-track"><span class="mizmap-switch-thumb"></span></span></label>
+                <div class="filter-row filter-row-select" id="trailLengthRow">
+                    <label for="trailLengthSel" class="filter-sublabel">Length</label>
+                    <select id="trailLengthSel" class="filter-select">
+                        <option value="15">15 s</option>
+                        <option value="30">30 s</option>
+                        <option value="60" selected>1 min</option>
+                        <option value="120">2 min</option>
+                        <option value="300">5 min</option>
+                    </select>
+                </div>
+            </div>
         </div>
-        <div class="filter-row filter-row-select" id="fogMemoryRow">
-            <label for="fogMemorySel" class="filter-sublabel">Memory</label>
-            <select id="fogMemorySel" class="filter-select">
-                <option value="0">Off</option>
-                <option value="30">30 s</option>
-                <option value="60" selected>1 min</option>
-                <option value="120">2 min</option>
-                <option value="300">5 min</option>
-            </select>
+        <div class="filter-section collapsed" data-section="basemap">
+            <button type="button" class="filter-section-header" aria-expanded="false" aria-controls="sec-basemap">
+                <span class="filter-section-label">Basemap</span>
+                <svg class="filter-section-chevron" viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4 6 4 4 4-4"/></svg>
+            </button>
+            <div class="filter-section-body" id="sec-basemap">
+                <div class="filter-row filter-row-select">
+                    <label for="basemapSel" class="filter-sublabel">Style</label>
+                    <select id="basemapSel" class="filter-select"></select>
+                </div>
+            </div>
         </div>
-        <div class="filter-row-hint" id="fogHint" hidden>Set <code>evalEnabled = true</code> in dcs-grpc.lua to enable detection.</div>
+        <div class="filter-section collapsed" data-section="fog">
+            <button type="button" class="filter-section-header" aria-expanded="false" aria-controls="sec-fog">
+                <span class="filter-section-label">Fog of war</span>
+                <svg class="filter-section-chevron" viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4 6 4 4 4-4"/></svg>
+            </button>
+            <div class="filter-section-body" id="sec-fog">
+                <label class="filter-row" title="Show only what the viewpoint coalition's sensors have detected"><span class="filter-name">Enable</span><input type="checkbox" id="fogToggle" /><span class="mizmap-switch-track"><span class="mizmap-switch-thumb"></span></span></label>
+                <div class="filter-row filter-row-select" id="fogViewpointRow">
+                    <label for="fogViewpointSel" class="filter-sublabel">View as</label>
+                    <select id="fogViewpointSel" class="filter-select">
+                        <option value="auto" selected>Own ship</option>
+                        <option value="3">Blue</option>
+                        <option value="2">Red</option>
+                        <option value="1">Neutral</option>
+                    </select>
+                </div>
+                <div class="filter-row filter-row-select" id="fogMemoryRow">
+                    <label for="fogMemorySel" class="filter-sublabel">Memory</label>
+                    <select id="fogMemorySel" class="filter-select">
+                        <option value="0">Off</option>
+                        <option value="30">30 s</option>
+                        <option value="60" selected>1 min</option>
+                        <option value="120">2 min</option>
+                        <option value="300">5 min</option>
+                    </select>
+                </div>
+                <div class="filter-row-hint" id="fogHint" hidden>Set <code>evalEnabled = true</code> in dcs-grpc.lua to enable detection.</div>
+            </div>
+        </div>
         <div class="filter-section-divider"></div>
         <div class="filter-row filter-row-status">
             <span class="filter-name">MizMap</span>
