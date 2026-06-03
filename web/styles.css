@@ -496,8 +496,22 @@ html, body {
     visibility: hidden;
 }
 
-/* On-map labels for the measure lines */
+/* On-map labels for the measure lines. The container is a transparent
+   positioning wrapper (Leaflet owns its transform); the visible pill is the
+   inner span, which we rotate to lie along the line. */
 .measure-label {
+    background: transparent;
+    border: none;
+    padding: 0;
+    box-shadow: none;
+}
+.measure-label::before {
+    /* kill Leaflet's default tooltip arrow */
+    display: none !important;
+}
+.measure-label-pill {
+    display: inline-block;
+    transform-origin: center;
     background: rgba(20, 20, 20, 0.85);
     border: 1px solid rgba(255, 255, 255, 0.18);
     border-radius: 3px;
@@ -507,14 +521,10 @@ html, body {
     font-size: 11px;
     white-space: nowrap;
 }
-.measure-label::before {
-    /* kill Leaflet's default tooltip arrow */
-    display: none !important;
-}
-.measure-label-bull {
+.measure-label-pill.measure-label-bull {
     border-color: rgba(91, 141, 239, 0.6);
 }
-.measure-label-self {
+.measure-label-pill.measure-label-self {
     border-color: rgba(244, 211, 94, 0.6);
 }
 

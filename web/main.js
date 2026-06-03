@@ -2424,7 +2424,27 @@ function interpolateLatLng(a, b, t) {
     return L.latLng(a.lat + (b.lat - a.lat) * t, a.lng + (b.lng - a.lng) * t);
 }
 
-function makeMeasureLabel(latlng, text, extraClass) {
+// Screen-pixel angle of segment a→b, in degrees, flipped to keep text upright.
+// Pixel angle (not great-circle bearing) so it matches how the line is drawn;
+// zoom/pan-invariant under Web Mercator, so it only needs recomputing when an
+// endpoint moves (which already re-fires rebuildMeasureLayers).
+function screenAngleDeg(a, b) {
+    const pa = map.latLngToLayerPoint(a);
+    const pb = map.latLngToLayerPoint(b);
+    let deg = (Math.atan2(pb.y - pa.y, pb.x - pa.x) * 180) / Math.PI;
+    if (deg > 90) deg -= 180;
+    else if (deg < -90) deg += 180;
+    return deg;
+}
+
+function makeMeasureLabel(latlng, text, extraClass, angleDeg, offsetPx = -12) {
+    // The pill (background/border) lives on the inner span so we can rotate it
+    // without clobbering the transform Leaflet sets on the container to position
+    // it. `rotate(...) translateY(...)` applies the nudge in the rotated frame,
+    // so the pill rides perpendicular to the line at any angle. `offsetPx` is
+    // signed: negative rides above the line, positive below (the upright-flip in
+    // screenAngleDeg makes "above"/"below" consistent across line directions, so
+    // the two self labels can sit on opposite sides and never overlap).
     return L.tooltip({
         permanent: true,
         direction: "center",
@@ -2432,7 +2452,10 @@ function makeMeasureLabel(latlng, text, extraClass) {
         opacity: 1,
     })
         .setLatLng(latlng)
-        .setContent(text);
+        .setContent(
+            `<span class="measure-label-pill ${extraClass}" ` +
+                `style="transform: rotate(${angleDeg}deg) translateY(${offsetPx}px)">${text}</span>`,
+        );
 }
 
 function rebuildMeasureLayers(targetLatLng, bullData, playerUnit, bullBR, selfOutBR, selfInBR, dec) {
@@ -2457,6 +2480,7 @@ function rebuildMeasureLayers(targetLatLng, bullData, playerUnit, bullBR, selfOu
             mid,
             `BULL → Tgt: ${formatBR(bullBR.brg, bullBR.rng, dec)}`,
             "measure-label-bull",
+            screenAngleDeg(a, b),
         ).addTo(group);
     }
     if (playerUnit && selfOutBR && selfInBR) {
@@ -2468,17 +2492,24 @@ function rebuildMeasureLayers(targetLatLng, bullData, playerUnit, bullBR, selfOu
             opacity: 1.0,
             dashArray: "6 4",
         });
-        // Label near self end (closer to "from self" perspective).
+        const selfAngle = screenAngleDeg(a, b);
+        const selfMid = interpolateLatLng(a, b, 0.5);
+        // Both self labels sit at the midpoint and straddle the line on opposite
+        // sides (outbound above, inbound below) so they stay centered and never
+        // overlap, even on a short measurement.
         makeMeasureLabel(
-            interpolateLatLng(a, b, 0.3),
+            selfMid,
             `Self → Tgt: ${formatBR(selfOutBR.brg, selfOutBR.rng, dec)}`,
             "measure-label-self",
+            selfAngle,
+            -12,
         ).addTo(group);
-        // Label near target end (closer to "from target" perspective).
         makeMeasureLabel(
-            interpolateLatLng(a, b, 0.7),
+            selfMid,
             `Tgt → Self: ${formatBR(selfInBR.brg, selfInBR.rng, dec)}`,
             "measure-label-self",
+            selfAngle,
+            12,
         ).addTo(group);
     }
     if (measureState) measureState.layers = group;
