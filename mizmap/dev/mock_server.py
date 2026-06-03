@@ -14,7 +14,7 @@ import json
 import logging
 import math
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import grpc
 
@@ -46,8 +46,25 @@ class MockUnit:
     heading_rad: float
     speed_mps: float
     player_name: str | None = None
+    # Racetrack/orbit behavior (opt-in): when both are > 0 the unit flies straight
+    # legs of `leg_seconds` separated by constant-rate 180° right turns — a
+    # tanker-style pattern that sweeps every heading, so trail/vector bugs surface.
+    turn_rate_rad_s: float = 0.0
+    leg_seconds: float = 0.0
+    _leg_elapsed: float = field(default=0.0, init=False)
+    _turn_remaining: float = field(default=0.0, init=False)
 
     def advance(self, dt: float) -> None:
+        if self.turn_rate_rad_s > 0.0 and self.leg_seconds > 0.0:
+            if self._turn_remaining > 0.0:
+                step = min(self.turn_rate_rad_s * dt, self._turn_remaining)
+                self.heading_rad = (self.heading_rad + step) % math.tau
+                self._turn_remaining -= step
+            else:
+                self._leg_elapsed += dt
+                if self._leg_elapsed >= self.leg_seconds:
+                    self._leg_elapsed = 0.0
+                    self._turn_remaining = math.pi  # begin a 180° right turn
         # Local-tangent-plane integration is fine at our scale.
         dx = self.speed_mps * dt * math.sin(self.heading_rad)
         dy = self.speed_mps * dt * math.cos(self.heading_rad)
@@ -66,7 +83,17 @@ class MockUnit:
             position=common_pb2.Position(lat=self.lat, lon=self.lon, alt=self.alt),
             orientation=common_pb2.Orientation(heading=self.heading_rad),
             velocity=common_pb2.Velocity(
-                heading=self.heading_rad, speed=self.speed_mps
+                heading=self.heading_rad,
+                speed=self.speed_mps,
+                # The backend derives `track` from this 3D vector (atan2(z, x)),
+                # not from `heading` above — Velocity.heading is broken in real
+                # DCS-gRPC. Leaving it unset makes every unit's track atan2(0,0)=0
+                # (all movement vectors point north). +x=north, +z=east.
+                velocity=common_pb2.Vector(
+                    x=self.speed_mps * math.cos(self.heading_rad),
+                    z=self.speed_mps * math.sin(self.heading_rad),
+                    y=0.0,
+                ),
             ),
             group=common_pb2.Group(
                 id=self.group_id,
@@ -97,6 +124,10 @@ def _build_scenario() -> list[MockUnit]:
             alt=3000.0,
             heading_rad=math.radians(90),
             speed_mps=200.0,
+            # Tanker-style racetrack: ~6 km E–W legs, 180° turns in 20 s
+            # (~1.3 km radius). Sweeps every heading so trail/vector errors show.
+            leg_seconds=30.0,
+            turn_rate_rad_s=math.pi / 20.0,
             # Marked as a player so own-ship features (auto-center, recenter
             # button, nav-mode follow, telemetry HUD's own-ship row) are
             # exercisable against the mock without a real DCS connection.
@@ -116,6 +147,8 @@ def _build_scenario() -> list[MockUnit]:
             alt=3000.0,
             heading_rad=math.radians(90),
             speed_mps=200.0,
+            leg_seconds=30.0,
+            turn_rate_rad_s=math.pi / 20.0,
         ),
         MockUnit(
             id=3,

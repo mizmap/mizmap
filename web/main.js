@@ -57,9 +57,11 @@ const WAYPOINT_RADIUS = 4; // px
 const ROUTE_WEIGHT = 2; // px
 const COALITION_COLOR = { 1: "#9aa0a6", 2: "#e07c7c", 3: "#5b8def" }; // neutral, red, blue
 
-// Movement vectors — DCS F10 convention: a 1-minute projection line from the
-// unit's current position along its heading at its current speed.
-const VECTOR_PROJECTION_S = 60;
+// Movement vectors — a fixed-length stub from the unit symbol along its track,
+// sized at 2× the symbol. Direction only: length no longer encodes speed, since
+// speed-scaled projections spanned half the map for fast movers. Held constant
+// in screen pixels (zoom-invariant), so endpoints are recomputed on zoomend.
+const VECTOR_LENGTH_PX = SYMBOL_SIZE * 2; // 56 px
 const VECTOR_MIN_SPEED_MS = 1.0; // ~2 kts — anything slower is noise/stationary
 const VECTOR_WEIGHT = 2;
 const EARTH_RADIUS_M = 6371000;
@@ -776,6 +778,8 @@ function buildMap(config) {
     m.on("zoomend", declutterAllRouteLabels);
     // Runways fade as you zoom in (defer to the base map's own depiction).
     m.on("zoomend", applyRunwayFade);
+    // Vectors are a fixed pixel length, so their lat/lon endpoints shift on zoom.
+    m.on("zoomend", moveAllVectors);
     // A user drag is the explicit "I want to look elsewhere" signal that breaks
     // nav-mode's continuous map-follow. Wheel/double-click zoom + programmatic
     // setView intentionally do NOT break follow.
@@ -1443,7 +1447,13 @@ function vectorLatLngs(u) {
     // Use `track` (direction of motion) not `heading` (nose direction). They
     // diverge for aircraft in crosswind, skidding vehicles, or stationary
     // units with jittery nose physics.
-    const end = projectLatLon(u.lat, u.lon, u.track, u.speed * VECTOR_PROJECTION_S);
+    // Fixed pixel length: offset the endpoint in screen space (bearing 0 = north
+    // = up = −y), then unproject. Stays VECTOR_LENGTH_PX long at any zoom/speed.
+    const start = map.latLngToContainerPoint([u.lat, u.lon]);
+    const end = map.containerPointToLatLng([
+        start.x + Math.sin(u.track) * VECTOR_LENGTH_PX,
+        start.y - Math.cos(u.track) * VECTOR_LENGTH_PX,
+    ]);
     return [[u.lat, u.lon], end];
 }
 
@@ -1497,6 +1507,12 @@ function applyVectorVisibility(entry) {
 
 function applyVectorVisibilityAll() {
     for (const entry of unitsById.values()) applyVectorVisibility(entry);
+}
+
+function moveAllVectors() {
+    for (const entry of unitsById.values()) {
+        if (entry.vectorVisible) moveVector(entry);
+    }
 }
 
 // --- trails -----------------------------------------------------------------
