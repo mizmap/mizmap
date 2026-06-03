@@ -2386,11 +2386,19 @@ function trueToMagnetic(brgT, dec) {
     return ((brgT - dec) % 360 + 360) % 360;
 }
 
-function formatBR(brgDeg, rngNm, dec) {
+function formatBearing(brgDeg, dec) {
     const suffix = dec === null || dec === undefined ? "°T" : "°M";
-    const brg = String(Math.round(trueToMagnetic(brgDeg, dec)) % 360).padStart(3, "0");
-    const rng = String(Math.round(rngNm)).padStart(3, "0");
-    return `${brg}${suffix} ${rng} nm`;
+    return `${String(Math.round(trueToMagnetic(brgDeg, dec)) % 360).padStart(3, "0")}${suffix}`;
+}
+
+function formatRange(rngNm) {
+    // No zero-padding for distance (unlike bearings, where 3 digits is the
+    // compass convention) — just the number of miles.
+    return `${Math.round(rngNm)} nm`;
+}
+
+function formatBR(brgDeg, rngNm, dec) {
+    return `${formatBearing(brgDeg, dec)} ${formatRange(rngNm)}`;
 }
 
 function pickReferenceBullseye() {
@@ -2518,19 +2526,18 @@ function rebuildMeasureLayers(targetLatLng, bullData, playerUnit, bullBR, selfOu
         });
         const selfAngle = screenAngleDeg(a, b);
         const selfMid = interpolateLatLng(a, b, 0.5);
-        // Both self labels sit at the midpoint and straddle the line on opposite
-        // sides (outbound above, inbound below) so they stay centered and never
-        // overlap, even on a short measurement.
+        // Split across the two sides to declutter: reciprocal bearings above the
+        // line, the (shared) distance below — no prefixes, no repeated range.
         makeMeasureLabel(
             selfMid,
-            `Self → Tgt: ${formatBR(selfOutBR.brg, selfOutBR.rng, dec)}`,
+            `${formatBearing(selfOutBR.brg, dec)} / ${formatBearing(selfInBR.brg, dec)}`,
             "measure-label-self",
             selfAngle,
             -12,
         ).addTo(group);
         makeMeasureLabel(
             selfMid,
-            `Tgt → Self: ${formatBR(selfInBR.brg, selfInBR.rng, dec)}`,
+            formatRange(selfOutBR.rng),
             "measure-label-self",
             selfAngle,
             12,
