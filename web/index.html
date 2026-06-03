@@ -39,6 +39,19 @@
     </button>
 
     <div id="filters">
+        <div class="filter-topbar">
+            <div class="filter-topbar-info">
+                <span class="filter-version" id="versionLabel">v?</span>
+                <span class="conn-status">
+                    <span class="conn-dot status-down" id="wsStatus" aria-label="WebSocket: disconnected"></span>
+                    <span class="conn-dot status-down" id="grpcStatus" aria-label="DCS-gRPC: disconnected"></span>
+                </span>
+            </div>
+            <button type="button" id="settingsBtn" class="settings-gear-btn" aria-label="Settings" title="Settings">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+            </button>
+        </div>
+        <div class="filter-row-error" id="grpcError" hidden></div>
         <div class="filter-section" data-section="coalition">
             <button type="button" class="filter-section-header" aria-expanded="true" aria-controls="sec-coalition">
                 <span class="filter-section-label">Coalition</span>
@@ -129,24 +142,6 @@
                     </select>
                 </div>
                 <div class="filter-row-hint" id="fogHint" hidden>Set <code>evalEnabled = true</code> in dcs-grpc.lua to enable detection.</div>
-            </div>
-        </div>
-        <div class="filter-section collapsed" data-section="status">
-            <button type="button" class="filter-section-header" aria-expanded="false" aria-controls="sec-status">
-                <span class="filter-section-label">Status</span>
-                <span class="conn-status">
-                    <span class="conn-item"><span class="conn-dot status-down" id="wsStatus" title="WebSocket: disconnected"></span>WS</span>
-                    <span class="conn-item"><span class="conn-dot status-down" id="grpcStatus" title="DCS-gRPC: disconnected"></span>gRPC</span>
-                </span>
-                <svg class="filter-section-chevron" viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4 6 4 4 4-4"/></svg>
-            </button>
-            <div class="filter-section-body" id="sec-status">
-                <div class="filter-row filter-row-status">
-                    <span class="filter-name">MizMap</span>
-                    <span class="filter-status-value" id="versionLabel">v?</span>
-                </div>
-                <div class="filter-row-error" id="grpcError" hidden></div>
-                <button type="button" id="settingsBtn" class="settings-open-btn">Settings…</button>
             </div>
         </div>
     </div>

@@ -1166,12 +1166,13 @@ function buildRecenterControl() {
     return new Ctrl();
 }
 
-// wsStatus/grpcStatus are now colored dots (no text) in the Status section
-// header; state shows as the dot color + a hover tooltip naming the link.
+// wsStatus/grpcStatus are colored dots (no text) in the panel top bar; state
+// shows as the dot color + a hover tooltip naming the link. The tooltip is the
+// app-styled .conn-dot::after, which reads aria-label (also the a11y name).
 function setStatus(el, ok, name) {
     el.classList.toggle("status-up", ok);
     el.classList.toggle("status-down", !ok);
-    el.title = `${name}: ${ok ? "connected" : "disconnected"}`;
+    el.setAttribute("aria-label", `${name}: ${ok ? "connected" : "disconnected"}`);
 }
 
 function applyGrpcStatus(msg) {
