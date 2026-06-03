@@ -1,12 +1,16 @@
 """Local tile proxy + on-disk cache.
 
-The frontend points at `/tiles/{z}/{x}/{y}.png` (served by `mizmap.server`)
-instead of the public OpenTopoMap URL. On request we look in the on-disk
-cache; on miss we fetch from the upstream URL configured by `MIZMAP_TILE_URL`,
-save to disk, and serve. Tiles are immutable — there's no TTL or
-revalidation — so a long-lived cache is a strict win for dev iteration,
-LAN consistency (multiple viewers share one warmed cache), latency, and
-upstream rate-limit politeness.
+The frontend points at `/tiles/{source}/{z}/{x}/{y}` (served by `mizmap.server`)
+instead of the public upstream URLs. On request we look in the on-disk cache;
+on miss we fetch from the source's upstream URL, save to disk, and serve. Tiles
+are immutable — there's no TTL or revalidation — so a long-lived cache is a
+strict win for dev iteration, LAN consistency (multiple viewers share one warmed
+cache), latency, and upstream rate-limit politeness.
+
+Multi-source: every selectable basemap (see `mizmap/basemaps.py`) is proxied the
+same way, each under its own `cache_dir/<source>/` subtree, so switching
+basemaps still never bypasses the cache. The source id is validated against the
+registry before any filesystem/network use.
 
 Concurrent misses for the same tile race to fetch independently. Acceptable:
 collisions are rare in practice and serialising would add complexity.
@@ -21,6 +25,7 @@ from pathlib import Path
 import httpx
 
 from mizmap import __version__
+from mizmap.basemaps import Basemap
 
 log = logging.getLogger(__name__)
 
@@ -34,14 +39,14 @@ _LOG_EVERY = 100
 
 
 class TileCache:
-    """Resolves tile URLs against a local on-disk cache.
+    """Resolves tile URLs against a local on-disk cache, across basemap sources.
 
-    One instance per `mizmap serve` process. Holds the upstream URL template,
-    the cache directory, an httpx client, and the hit/miss counters.
+    One instance per `mizmap serve` process. Holds the basemap registry (keyed
+    by id), the cache directory, an httpx client, and the hit/miss counters.
     """
 
-    def __init__(self, upstream_url_template: str, cache_dir: Path) -> None:
-        self._upstream = upstream_url_template
+    def __init__(self, basemaps: list[Basemap], cache_dir: Path) -> None:
+        self._sources = {b.id: b for b in basemaps}
         self._cache_dir = cache_dir
         # `astral.sh/uv` ships httpx via FastAPI's transitive deps; reuse a
         # single client for connection pooling.
@@ -65,17 +70,25 @@ class TileCache:
     async def aclose(self) -> None:
         await self._client.aclose()
 
-    def _tile_path(self, z: int, x: int, y: int) -> Path:
-        # Path traversal protection: the URL converter already enforces ints,
-        # but layered defence — z/x/y are always non-negative integers.
-        return self._cache_dir / str(z) / str(x) / f"{y}.png"
+    def has_source(self, source: str) -> bool:
+        return source in self._sources
 
-    def _upstream_url(self, z: int, x: int, y: int) -> str:
-        # `{s}` subdomain (a/b/c on OpenTopoMap) doesn't matter for us — we're
-        # the source for downstream clients. Pick 'a' deterministically.
+    def content_type(self, source: str) -> str:
+        return self._sources[source].content_type
+
+    def _tile_path(self, source: str, z: int, x: int, y: int) -> Path:
+        # Path traversal protection: source is validated against the registry by
+        # has_source(); z/x/y are non-negative ints enforced by the URL converter.
+        return self._cache_dir / source / str(z) / str(x) / f"{y}.{self._sources[source].ext}"
+
+    def _upstream_url(self, source: str, z: int, x: int, y: int) -> str:
+        bm = self._sources[source]
+        # `{s}` subdomain (a/b/c on OSM/OpenTopoMap) doesn't matter for us — we're
+        # the source for downstream clients. Pick the first deterministically.
+        sub = bm.subdomains[0] if bm.subdomains else "a"
         return (
-            self._upstream
-            .replace("{s}", "a")
+            bm.upstream_url
+            .replace("{s}", sub)
             .replace("{z}", str(z))
             .replace("{x}", str(x))
             .replace("{y}", str(y))
@@ -93,14 +106,15 @@ class TileCache:
                 ratio,
             )
 
-    async def fetch(self, z: int, x: int, y: int) -> tuple[bytes, str]:
-        """Return (png_bytes, cache_status) for the tile.
+    async def fetch(self, source: str, z: int, x: int, y: int) -> tuple[bytes, str]:
+        """Return (tile_bytes, cache_status) for the tile from `source`.
 
         `cache_status` is "hit" or "miss" for the response `X-Tile-Cache`
-        header. On upstream failure, raises httpx.HTTPError (the server route
-        translates to a 502).
+        header. Caller must validate `source` via `has_source()` first. On
+        upstream failure, raises httpx.HTTPError (the server route translates
+        to a 502).
         """
-        path = self._tile_path(z, x, y)
+        path = self._tile_path(source, z, x, y)
         if self._writable and path.is_file():
             try:
                 data = await asyncio.to_thread(path.read_bytes)
@@ -111,7 +125,7 @@ class TileCache:
                 # Disk read failed — fall through to refetch.
                 log.warning("tile cache read failed for %s (%s) — refetching", path, exc)
 
-        url = self._upstream_url(z, x, y)
+        url = self._upstream_url(source, z, x, y)
         try:
             resp = await self._client.get(url)
             resp.raise_for_status()

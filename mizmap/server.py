@@ -33,6 +33,7 @@ from mizmap.config import (
     env_locked_keys,
     update_config_file,
 )
+from mizmap.basemaps import DEFAULT_BASEMAP_ID, build_basemaps
 from mizmap.grpc_client import DcsGrpcClient
 from mizmap.marks import Mark
 from mizmap.navaids import load_navaids
@@ -332,8 +333,9 @@ def create_app(settings: Settings, *, open_browser: bool = False) -> FastAPI:
         if state.remove_mark(mark_id) is not None:
             await hub.broadcast({"type": "mark_removed", "id": mark_id})
 
+    basemaps = build_basemaps(settings)
     tile_cache = TileCache(
-        upstream_url_template=settings.tile_url,
+        basemaps=basemaps,
         cache_dir=settings.tile_cache_dir,
     )
 
@@ -415,12 +417,22 @@ def create_app(settings: Settings, *, open_browser: bool = False) -> FastAPI:
 
     @app.get("/api/config")
     async def public_config() -> JSONResponse:
-        # Always serve the locally-proxied tile URL; the upstream URL stays
-        # private to the backend (see /tiles route).
+        # Always serve locally-proxied tile URLs; upstream URLs stay private to
+        # the backend (see /tiles route). The frontend renders one selectable
+        # basemap at a time, defaulting to `defaultBasemap`.
         return JSONResponse(
             {
-                "tileUrl": "/tiles/{z}/{x}/{y}.png",
-                "tileAttribution": settings.tile_attribution,
+                "basemaps": [
+                    {
+                        "id": b.id,
+                        "label": b.label,
+                        "url": f"/tiles/{b.id}/{{z}}/{{x}}/{{y}}",
+                        "attribution": b.attribution,
+                        "maxNativeZoom": b.max_native_zoom,
+                    }
+                    for b in basemaps
+                ],
+                "defaultBasemap": DEFAULT_BASEMAP_ID,
             }
         )
 
@@ -512,21 +524,23 @@ def create_app(settings: Settings, *, open_browser: bool = False) -> FastAPI:
             asyncio.create_task(_refresh_navaids())
         return JSONResponse({"saved": True, "restart_required": restart_required})
 
-    @app.get("/tiles/{z}/{x}/{y}.png")
-    async def tile(z: int, x: int, y: int) -> Response:
-        # Cheap sanity bound — Leaflet/OpenTopoMap won't request beyond ~22.
+    @app.get("/tiles/{source}/{z}/{x}/{y}")
+    async def tile(source: str, z: int, x: int, y: int) -> Response:
+        if not tile_cache.has_source(source):
+            raise HTTPException(status_code=404, detail="unknown basemap")
+        # Cheap sanity bound — Leaflet won't request beyond ~22.
         if not (0 <= z <= 22) or x < 0 or y < 0:
             raise HTTPException(status_code=400, detail="z/x/y out of range")
         try:
-            data, status = await tile_cache.fetch(z, x, y)
+            data, status = await tile_cache.fetch(source, z, x, y)
         except httpx.HTTPError as exc:
-            log.warning("tile %d/%d/%d upstream fetch failed: %s", z, x, y, exc)
+            log.warning("tile %s/%d/%d/%d upstream fetch failed: %s", source, z, x, y, exc)
             raise HTTPException(status_code=502, detail="upstream tile fetch failed") from exc
         # Browser-side cache lets us avoid even hitting the proxy on subsequent
         # views of the same tile within a session. Tiles are immutable.
         return Response(
             content=data,
-            media_type="image/png",
+            media_type=tile_cache.content_type(source),
             headers={
                 "X-Tile-Cache": status,
                 "Cache-Control": "public, max-age=86400",

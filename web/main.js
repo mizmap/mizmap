@@ -204,6 +204,14 @@ let pendingView = null;
 // because the URL hash already carried a view). Prevents repeated snaps on
 // every unit_update once the player appears.
 let initialOwnShipCenterDone = false;
+// Basemap selection. `basemapList`/`defaultBasemapId` come from /api/config;
+// `activeBasemapId` is the rendered one; `basemapLayer` is its Leaflet layer.
+// `pendingBasemap` is set by decodeHash from `base=` (hash wins over default).
+let basemapList = [];
+let defaultBasemapId = null;
+let activeBasemapId = null;
+let basemapLayer = null;
+let pendingBasemap = null;
 // Leaflet control wrapper for the recenter button — instantiated by buildMap;
 // shown when the player's own-ship is on the map, hidden otherwise.
 let recenterControl = null;
@@ -568,6 +576,9 @@ function encodeHash() {
             parts.push(`fogmem=${FILTERS.fog.memorySec}`);
         }
     }
+    if (activeBasemapId && activeBasemapId !== defaultBasemapId) {
+        parts.push(`base=${activeBasemapId}`);
+    }
     if (view) parts.push(`view=${view}`);
     const url =
         parts.length === 0
@@ -622,6 +633,8 @@ function decodeHash() {
         const n = parseInt(fogMemStr, 10);
         if (FOG_MEMORY_CHOICES.includes(n)) FILTERS.fog.memorySec = n;
     }
+    const baseStr = params.get("base");
+    if (baseStr !== null) pendingBasemap = baseStr; // validated against the list in setupBasemaps
     const viewStr = params.get("view");
     if (viewStr !== null) {
         const m = viewStr.match(/^(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?),(\d+(?:\.\d+)?)$/);
@@ -736,11 +749,7 @@ function buildMap(config) {
     // can hit the recenter button if they want to snap to the player.
     if (pendingView) initialOwnShipCenterDone = true;
 
-    L.tileLayer(config.tileUrl, {
-        maxZoom: 17,
-        attribution: config.tileAttribution,
-        subdomains: "abc",
-    }).addTo(m);
+    setupBasemaps(m, config);
 
     m.createPane(MARKS_PANE).style.zIndex = String(MARKS_PANE_Z);
     marksRenderer = L.svg({ pane: MARKS_PANE });
@@ -759,6 +768,55 @@ function buildMap(config) {
     recenterControl = buildRecenterControl();
     recenterControl.addTo(m);
     return m;
+}
+
+// Basemap selector. The list + default come from /api/config; the proxy serves
+// every source through /tiles/<id>/… so the browser never hits upstream tile
+// servers directly. One layer at a time; the choice rides the URL hash (`base=`)
+// like the rest of the view state. Called once from buildMap.
+function setupBasemaps(m, config) {
+    basemapList = Array.isArray(config.basemaps) ? config.basemaps : [];
+    defaultBasemapId = config.defaultBasemap || (basemapList[0] && basemapList[0].id) || null;
+    const valid = new Set(basemapList.map((b) => b.id));
+    activeBasemapId =
+        pendingBasemap && valid.has(pendingBasemap) ? pendingBasemap : defaultBasemapId;
+
+    const sel = document.getElementById("basemapSel");
+    if (sel) {
+        sel.innerHTML = "";
+        for (const b of basemapList) {
+            const opt = document.createElement("option");
+            opt.value = b.id;
+            opt.textContent = b.label;
+            sel.appendChild(opt);
+        }
+        if (activeBasemapId) sel.value = activeBasemapId;
+        sel.addEventListener("change", () => {
+            applyBasemap(m, sel.value);
+            encodeHash();
+        });
+    }
+
+    if (activeBasemapId) applyBasemap(m, activeBasemapId);
+}
+
+// Swap the active basemap. Tile layers live in Leaflet's tilePane (below the
+// overlay/marker panes regardless of add order), so a freshly-added base still
+// renders beneath symbols. Add-then-remove avoids a no-tile flash mid-switch.
+function applyBasemap(m, id) {
+    const bm = basemapList.find((b) => b.id === id);
+    if (!bm) return;
+    const layer = L.tileLayer(bm.url, {
+        maxNativeZoom: bm.maxNativeZoom,
+        maxZoom: 19,
+        attribution: bm.attribution,
+    });
+    layer.addTo(m);
+    if (basemapLayer) m.removeLayer(basemapLayer);
+    basemapLayer = layer;
+    activeBasemapId = id;
+    const sel = document.getElementById("basemapSel");
+    if (sel && sel.value !== id) sel.value = id;
 }
 
 // Snap-to-player helper. Always recenters at the current zoom (so the user's
