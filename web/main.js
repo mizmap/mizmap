@@ -41,6 +41,7 @@ const measureGridRowEl = document.getElementById("measureGridRow");
 const measureLatLonEl = document.getElementById("measureLatLon");
 const measureLatLonRowEl = document.getElementById("measureLatLonRow");
 const measureClearBtn = document.getElementById("measureClear");
+const measureHintEl = document.getElementById("measureHint");
 const MEASURE_SELF_COLOR = "#f4d35e";
 
 const cursorReadoutEl = document.getElementById("cursorReadout");
@@ -189,8 +190,12 @@ let selectedUnitId = null;
 // measurement. `elevM` and `declinationDeg` come from parallel HTTP fetches
 // that resolve after the click and update the panel in place. `declinationDeg
 // === null` means "use true bearings" (either still fetching or fetch failed).
+// `mode` is "tracking" (target follows the cursor live; no Eval fetches, so
+// bearings stay true) or "frozen" (locked at the click point; elevation +
+// declination fetched, so bearings refine to magnetic where available).
 let measureState = null;
 let measureReqCounter = 0; // monotonic id so stale elevation responses are dropped
+let measureRebuildRaf = 0; // pending rAF id coalescing per-cursor-move rebuilds
 
 // Cached magnetic declination at the player's current position. Refetched at
 // most every 30 s (declination changes <0.01°/min even at jet speeds, so a
@@ -2418,6 +2423,26 @@ function buildRulerEndpointIcon() {
     });
 }
 
+// Endpoint marker while tracking: a dashed ring + cross, pulsed via CSS so it
+// reads as provisional vs the solid locked cross.
+function buildTrackingEndpointIcon() {
+    const cross = `
+    <line x1="5" y1="5" x2="13" y2="13" />
+    <line x1="13" y1="5" x2="5" y2="13" />`;
+    const ring = `<circle cx="9" cy="9" r="7" fill="none" stroke-dasharray="3 3" />`;
+    const svg = `
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 18 18" width="18" height="18">
+  <g stroke="${CASING_COLOR}" stroke-width="4" stroke-linecap="round" opacity="${CASING_OPACITY}">${cross}${ring}</g>
+  <g stroke="${MEASURE_SELF_COLOR}" stroke-width="2" stroke-linecap="round">${cross}${ring}</g>
+</svg>`.trim();
+    return L.divIcon({
+        className: "ruler-endpoint ruler-endpoint-tracking",
+        html: svg,
+        iconSize: [18, 18],
+        iconAnchor: [9, 9],
+    });
+}
+
 // --- measure: map layers (lines + on-line labels) ----------------------------
 
 function interpolateLatLng(a, b, t) {
@@ -2438,24 +2463,23 @@ function screenAngleDeg(a, b) {
 }
 
 function makeMeasureLabel(latlng, text, extraClass, angleDeg, offsetPx = -12) {
-    // The pill (background/border) lives on the inner span so we can rotate it
-    // without clobbering the transform Leaflet sets on the container to position
-    // it. `rotate(...) translateY(...)` applies the nudge in the rotated frame,
-    // so the pill rides perpendicular to the line at any angle. `offsetPx` is
-    // signed: negative rides above the line, positive below (the upright-flip in
-    // screenAngleDeg makes "above"/"below" consistent across line directions, so
-    // the two self labels can sit on opposite sides and never overlap).
-    return L.tooltip({
-        permanent: true,
-        direction: "center",
-        className: `measure-label ${extraClass}`,
-        opacity: 1,
-    })
-        .setLatLng(latlng)
-        .setContent(
-            `<span class="measure-label-pill ${extraClass}" ` +
-                `style="transform: rotate(${angleDeg}deg) translateY(${offsetPx}px)">${text}</span>`,
-        );
+    // A divIcon marker (not a permanent tooltip): tooltips fade in/out on
+    // add/remove, so the teardown-and-rebuild on every cursor frame would leave
+    // a pile of ghosting, half-faded copies during live tracking. Markers
+    // add/remove synchronously. Centering: the 0-size icon sits at the point,
+    // `.measure-label-anchor` translates -50%/-50% to center the box, and the
+    // inner `.measure-label-pill` carries `rotate(...) translateY(...)` so it
+    // rides along the line (negative offset above, positive below). `tooltipPane`
+    // keeps it stacked above the measure lines, as the tooltip version was.
+    const html =
+        `<div class="measure-label-anchor"><span class="measure-label-pill ${extraClass}" ` +
+        `style="transform: rotate(${angleDeg}deg) translateY(${offsetPx}px)">${text}</span></div>`;
+    return L.marker(latlng, {
+        icon: L.divIcon({ className: "measure-label", html, iconSize: [0, 0], iconAnchor: [0, 0] }),
+        interactive: false,
+        keyboard: false,
+        pane: "tooltipPane",
+    });
 }
 
 function rebuildMeasureLayers(targetLatLng, bullData, playerUnit, bullBR, selfOutBR, selfInBR, dec) {
@@ -2516,12 +2540,14 @@ function rebuildMeasureLayers(targetLatLng, bullData, playerUnit, bullBR, selfOu
 }
 
 function clearMeasure() {
+    cancelMeasureRebuild();
     if (measureState) {
         measureState.marker.remove();
         if (measureState.layers) measureState.layers.remove();
         measureState = null;
     }
     measureEl.hidden = true;
+    measureHintEl.hidden = true;
     measureAltEl.textContent = "…";
     measureGridEl.textContent = "—";
     measureGridRowEl.dataset.hasValue = "false";
@@ -2729,16 +2755,36 @@ function handleUnitClick(id) {
     else selectUnit(id);
 }
 
-function handleMapClick(ev) {
+// Desktop middle-click state machine: idle/frozen → start tracking; tracking →
+// lock at the exact click point. Right-click (clearMeasure) exits from any state.
+function handleMeasureClick(latlng) {
     if (FILTERS.layers.measure !== true) return;
-    const { lat, lng: lon } = ev.latlng;
-    // Replace any existing endpoint marker + layers.
+    if (measureState && measureState.mode === "tracking") freezeMeasure(latlng);
+    else beginTracking(latlng);
+}
+
+function beginTracking(latlng) {
+    setMeasureTarget(latlng, "tracking");
+}
+
+function freezeMeasure(latlng) {
+    setMeasureTarget(latlng, "frozen");
+}
+
+// (Re)build measureState + panel for a target point. `mode` "tracking" keeps the
+// readout true and skips the Eval fetches (one per cursor move would be brutal);
+// "frozen" locks the point and fetches elevation + declination (→ magnetic).
+function setMeasureTarget(latlng, mode) {
+    cancelMeasureRebuild();
+    const lat = latlng.lat;
+    const lon = latlng.lng;
+    const tracking = mode === "tracking";
     if (measureState) {
         measureState.marker.remove();
         if (measureState.layers) measureState.layers.remove();
     }
     const marker = L.marker([lat, lon], {
-        icon: buildRulerEndpointIcon(),
+        icon: tracking ? buildTrackingEndpointIcon() : buildRulerEndpointIcon(),
         interactive: false,
         keyboard: false,
     }).addTo(map);
@@ -2746,6 +2792,7 @@ function handleMapClick(ev) {
     measureState = {
         lat,
         lon,
+        mode,
         marker,
         elevReqId: reqId,
         layers: null,
@@ -2753,17 +2800,50 @@ function handleMapClick(ev) {
         declinationDeg: null,
     };
     measureEl.hidden = false;
+    measureHintEl.hidden = !tracking;
     measureAltEl.textContent = "…";
-    // MGRS is a pure function of the clicked point — set once here rather than
-    // recomputing in refreshMeasureReadout (which re-runs on every player move).
+    updateMeasurePoint(lat, lon);
+    refreshMeasureReadout();
+    if (!tracking) {
+        fetchElevation(lat, lon, reqId);
+        fetchClickDeclination(lat, lon, reqId);
+    }
+}
+
+// Live cursor follow while tracking — lightweight per-move update (no marker /
+// state recreation), with the line/label rebuild coalesced to one rAF.
+function updateTrackingTarget(latlng) {
+    if (!measureState || measureState.mode !== "tracking") return;
+    measureState.lat = latlng.lat;
+    measureState.lon = latlng.lng;
+    measureState.marker.setLatLng(latlng);
+    updateMeasurePoint(latlng.lat, latlng.lng);
+    scheduleMeasureRebuild();
+}
+
+// MGRS + L/L of the target point. Pure function of the point (unlike the
+// bearings, which depend on the live player/bull), so set directly here.
+function updateMeasurePoint(lat, lon) {
     const grid = formatMgrs(lat, lon);
     measureGridEl.textContent = grid;
     measureGridRowEl.dataset.hasValue = grid !== "—" ? "true" : "false";
     measureLatLonEl.textContent = formatLatLonDdm(lat, lon);
     measureLatLonRowEl.dataset.hasValue = "true";
-    refreshMeasureReadout();
-    fetchElevation(lat, lon, reqId);
-    fetchClickDeclination(lat, lon, reqId);
+}
+
+function scheduleMeasureRebuild() {
+    if (measureRebuildRaf) return;
+    measureRebuildRaf = requestAnimationFrame(() => {
+        measureRebuildRaf = 0;
+        if (measureState) refreshMeasureReadout();
+    });
+}
+
+function cancelMeasureRebuild() {
+    if (measureRebuildRaf) {
+        cancelAnimationFrame(measureRebuildRaf);
+        measureRebuildRaf = 0;
+    }
 }
 
 // --- copy buttons -----------------------------------------------------------
@@ -2969,7 +3049,8 @@ function connectWebSocket() {
     // so left-click is free to toggle sticky tooltips on markers. Browsers
     // trigger autoscroll on middle-button mousedown by default — preventDefault
     // there suppresses it; the actual measurement fires on auxclick after the
-    // mouseup completes.
+    // mouseup completes. First middle-click starts tracking (target follows the
+    // cursor); the second locks it.
     const container = map.getContainer();
     L.DomEvent.on(container, "mousedown", (ev) => {
         if (ev.button === 1) ev.preventDefault();
@@ -2977,7 +3058,7 @@ function connectWebSocket() {
     L.DomEvent.on(container, "auxclick", (ev) => {
         if (ev.button !== 1) return;
         ev.preventDefault();
-        handleMapClick({ latlng: map.mouseEventToLatLng(ev) });
+        handleMeasureClick(map.mouseEventToLatLng(ev));
     });
     map.on("contextmenu", (ev) => {
         // Right-click clears measurement and suppresses the default browser menu.
@@ -2993,6 +3074,7 @@ function connectWebSocket() {
             cursorMgrsEl.textContent = formatMgrs(ev.latlng.lat, ev.latlng.lng);
             cursorLatLonEl.textContent = formatLatLonDdm(ev.latlng.lat, ev.latlng.lng);
             cursorReadoutEl.hidden = false;
+            updateTrackingTarget(ev.latlng); // no-op unless a measurement is tracking
         });
         map.on("mouseout", () => {
             cursorReadoutEl.hidden = true;
@@ -3207,7 +3289,9 @@ function wireKneeboardControls() {
     if (map) {
         map.on("click", (ev) => {
             if (!kbMeasureArmed) return;
-            handleMapClick(ev);
+            // Touch has no cursor to follow, so the tap places a locked
+            // measurement directly (one-shot, as before the tracking model).
+            if (FILTERS.layers.measure === true) freezeMeasure(ev.latlng);
             kbMeasureArmed = false;
             measureBtn?.classList.remove("kb-armed");
         });
