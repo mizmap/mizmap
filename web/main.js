@@ -1166,14 +1166,16 @@ function buildRecenterControl() {
     return new Ctrl();
 }
 
-function setStatus(el, ok, label) {
-    el.textContent = label;
+// wsStatus/grpcStatus are now colored dots (no text) in the Status section
+// header; state shows as the dot color + a hover tooltip naming the link.
+function setStatus(el, ok, name) {
     el.classList.toggle("status-up", ok);
     el.classList.toggle("status-down", !ok);
+    el.title = `${name}: ${ok ? "connected" : "disconnected"}`;
 }
 
 function applyGrpcStatus(msg) {
-    setStatus(grpcStatusEl, !!msg.connected, msg.connected ? "connected" : "disconnected");
+    setStatus(grpcStatusEl, !!msg.connected, "DCS-gRPC");
     if (msg.connected || !msg.error) {
         grpcErrorEl.hidden = true;
         grpcErrorEl.textContent = "";
@@ -2805,12 +2807,12 @@ function connectWebSocket() {
         ws = new WebSocket(url);
 
         ws.addEventListener("open", () => {
-            setStatus(wsStatusEl, true, "connected");
+            setStatus(wsStatusEl, true, "WebSocket");
             backoff = 1000;
         });
 
         ws.addEventListener("close", () => {
-            setStatus(wsStatusEl, false, "disconnected");
+            setStatus(wsStatusEl, false, "WebSocket");
             setTimeout(open, backoff);
             backoff = Math.min(backoff * 2, 15000);
         });

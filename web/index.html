@@ -131,21 +131,24 @@
                 <div class="filter-row-hint" id="fogHint" hidden>Set <code>evalEnabled = true</code> in dcs-grpc.lua to enable detection.</div>
             </div>
         </div>
-        <div class="filter-section-divider"></div>
-        <div class="filter-row filter-row-status">
-            <span class="filter-name">MizMap</span>
-            <span class="filter-status-value" id="versionLabel">v?</span>
+        <div class="filter-section collapsed" data-section="status">
+            <button type="button" class="filter-section-header" aria-expanded="false" aria-controls="sec-status">
+                <span class="filter-section-label">Status</span>
+                <span class="conn-status">
+                    <span class="conn-item"><span class="conn-dot status-down" id="wsStatus" title="WebSocket: disconnected"></span>WS</span>
+                    <span class="conn-item"><span class="conn-dot status-down" id="grpcStatus" title="DCS-gRPC: disconnected"></span>gRPC</span>
+                </span>
+                <svg class="filter-section-chevron" viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4 6 4 4 4-4"/></svg>
+            </button>
+            <div class="filter-section-body" id="sec-status">
+                <div class="filter-row filter-row-status">
+                    <span class="filter-name">MizMap</span>
+                    <span class="filter-status-value" id="versionLabel">v?</span>
+                </div>
+                <div class="filter-row-error" id="grpcError" hidden></div>
+                <button type="button" id="settingsBtn" class="settings-open-btn">Settings…</button>
+            </div>
         </div>
-        <div class="filter-row filter-row-status">
-            <span class="filter-name">WS</span>
-            <span id="wsStatus" class="status status-down filter-status-value">disconnected</span>
-        </div>
-        <div class="filter-row filter-row-status">
-            <span class="filter-name">DCS-gRPC</span>
-            <span id="grpcStatus" class="status status-down filter-status-value">disconnected</span>
-        </div>
-        <div class="filter-row-error" id="grpcError" hidden></div>
-        <button type="button" id="settingsBtn" class="settings-open-btn">Settings…</button>
     </div>
 
     <div id="navpanel">

@@ -683,11 +683,33 @@ html, body {
     color: #e07c7c;
 }
 
-/* Connection-status footer inside the filter panel. */
-.filter-section-divider {
-    height: 1px;
-    background: rgba(255, 255, 255, 0.12);
-    margin: 10px 0 6px;
+/* Connection health lives in the Status section header as two dots, so it
+   stays glanceable even while the section is collapsed. The dots sit to the
+   right, just before the chevron. */
+.conn-status {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-left: auto;
+}
+
+.conn-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    color: #9aa0a6;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+/* Dot fill follows its own text color, which .status-up/.status-down set. */
+.conn-dot {
+    flex: none;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: currentColor;
 }
 
 .filter-row-status {
