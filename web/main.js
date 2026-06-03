@@ -52,6 +52,10 @@ const CAUCASUS_CENTER = [43.0, 40.8]; // ~midpoint of the DCS Caucasus theater
 // 12 is roughly "regional" — ~ a 20 km × 15 km window in mid-latitudes,
 // enough to see nearby waypoints and threat rings without panning.
 const OWN_SHIP_INITIAL_ZOOM = 12;
+// Window for distinguishing a single from a double click on the recenter
+// button — a lone click's action fires after this delay; a second click within
+// it is a double-click and cancels the pending single.
+const RECENTER_DBLCLICK_MS = 250;
 const SYMBOL_SIZE = 28; // px, rendered by milsymbol
 const WAYPOINT_RADIUS = 4; // px
 const ROUTE_WEIGHT = 2; // px
@@ -231,14 +235,17 @@ let pendingBasemap = null;
 // Leaflet control wrapper for the recenter button — instantiated by buildMap;
 // shown when the player's own-ship is on the map, hidden otherwise.
 let recenterControl = null;
-// Navigation mode toggle. When on, the map follows the player every tick and
-// the nav panel shows next-waypoint metrics.
+// Navigation mode toggle. When on, the nav panel shows next-waypoint metrics
+// and turning it on engages map-follow of the own-ship (via followedUnitId).
 let navModeOn = false;
-// Transient sub-state of nav mode: are we *currently* panning the map to track
-// the own-ship? Engaged by turning nav-mode on or clicking recenter while
-// nav-mode is on; broken by a user drag. Never persisted — a page reload with
-// nav still on comes back with this false (user clicks recenter to re-engage).
-let navFollowing = false;
+// The unit the map continuously re-centers on (null = not following) — the
+// single source of truth for map-follow, shared by the recenter button and nav
+// mode. Set by: the recenter button (single-click → selected unit, double-click
+// → own-ship) and nav-on (→ own-ship). Cleared by: toggling follow off,
+// deselecting / switching the selected unit, a user drag, the followed unit
+// disappearing, or a mission/snapshot reset. Never persisted — a reload comes
+// back not-following.
+let followedUnitId = null;
 // Manual override for the displayed waypoint index. `null` = use the auto
 // heuristic (closest ahead). Set by the prev/next arrow buttons; reset when
 // nav-mode is turned off or when routes change (mission reload).
@@ -781,9 +788,9 @@ function buildMap(config) {
     // Vectors are a fixed pixel length, so their lat/lon endpoints shift on zoom.
     m.on("zoomend", moveAllVectors);
     // A user drag is the explicit "I want to look elsewhere" signal that breaks
-    // nav-mode's continuous map-follow. Wheel/double-click zoom + programmatic
-    // setView intentionally do NOT break follow.
-    m.on("dragstart", () => { navFollowing = false; });
+    // continuous map-follow. Wheel/double-click zoom + programmatic setView
+    // intentionally do NOT break follow.
+    m.on("dragstart", () => { setFollow(null); });
 
     recenterControl = buildRecenterControl();
     recenterControl.addTo(m);
@@ -857,11 +864,40 @@ function maybeAutoCenterOnOwnShip() {
     }
 }
 
+// --- map follow -------------------------------------------------------------
+// `followedUnitId` (declared up top) is the single source of truth. setFollow
+// is the only writer, so the button's active state and the immediate recenter
+// stay in lockstep with the state. The per-tick recenter (as the unit moves)
+// lives in the unit_update handler.
+function setFollow(id) {
+    followedUnitId = id;
+    updateFollowButtonState();
+    if (id !== null) recenterOnUnit(id);
+}
+
+// Snap to a unit's current position at the current zoom (preserves the user's
+// chosen zoom). No-op if the unit isn't on the map.
+function recenterOnUnit(id) {
+    const entry = unitsById.get(id);
+    if (!entry || !map) return;
+    map.setView([entry.data.lat, entry.data.lon], map.getZoom(), { animate: false });
+}
+
+function updateFollowButtonState() {
+    if (!recenterControl) return;
+    const el = recenterControl.getContainer();
+    const btn = el && el.querySelector(".mizmap-recenter-btn");
+    if (btn) btn.classList.toggle("is-following", followedUnitId !== null);
+}
+
+// The button is meaningful when there's something either gesture can act on:
+// a selected unit (single-click follows it) or an own-ship (double-click).
 function updateRecenterControlVisibility() {
     if (!recenterControl) return;
     const el = recenterControl.getContainer();
     if (!el) return;
-    el.style.display = findPlayerUnit() ? "" : "none";
+    const usable = selectedUnitId !== null || !!findPlayerUnit();
+    el.style.display = usable ? "" : "none";
 }
 
 // --- navigation mode --------------------------------------------------------
@@ -1040,14 +1076,31 @@ function setNavMode(on) {
     if (navEls.data) navEls.data.hidden = !navModeOn;
     if (navEls.toggle) navEls.toggle.checked = navModeOn;
     if (navModeOn) {
-        recenterOnOwnShip();
-        navFollowing = true;
+        // Engage map-follow of the own-ship (if it's on the map yet).
+        const player = findPlayerUnit();
+        if (player) setFollow(player.id);
         refreshNavPanel();
     } else {
-        navFollowing = false;
+        setFollow(null);
         // Turning nav-mode off is also the user's "give me auto again" reset.
         navWpIndexOverride = null;
     }
+}
+
+// Single-click: toggle map-follow on the currently selected unit. No-op when
+// nothing is selected (double-click is the own-ship path).
+function onRecenterSingleClick() {
+    if (selectedUnitId === null) return;
+    setFollow(followedUnitId === selectedUnitId ? null : selectedUnitId);
+}
+
+// Double-click: select the own-ship (if present) and follow it — same outcome
+// regardless of what was selected or followed before. No-op without an own-ship.
+function onRecenterDoubleClick() {
+    const player = findPlayerUnit();
+    if (!player) return;
+    selectUnit(player.id); // no-op if already selected; clears any prior follow
+    setFollow(player.id);
 }
 
 function buildRecenterControl() {
@@ -1060,9 +1113,12 @@ function buildRecenterControl() {
             );
             const btn = L.DomUtil.create("a", "mizmap-recenter-btn", container);
             btn.href = "#";
-            btn.title = "Center on own-ship";
+            btn.title = "Follow selected unit — double-click to follow own-ship";
             btn.setAttribute("role", "button");
-            btn.setAttribute("aria-label", "Center on own-ship");
+            btn.setAttribute(
+                "aria-label",
+                "Follow selected unit; double-click to follow own-ship",
+            );
             // Inline SVG: crosshair (concentric circle + four ticks). Matches
             // the existing minimal-line aesthetic of the other map glyphs
             // (bullseye, ruler endpoint).
@@ -1075,16 +1131,30 @@ function buildRecenterControl() {
   <line x1="1" y1="11" x2="4" y2="11" />
   <line x1="18" y1="11" x2="21" y2="11" />
 </svg>`.trim();
+            // Keep map drag/zoom (incl. dblclick-zoom) from firing under the btn.
+            L.DomEvent.disableClickPropagation(container);
+            // A Leaflet control can't natively tell single from double click, so
+            // debounce: a lone click fires its action after the dblclick window;
+            // a second click within it cancels the pending single and fires the
+            // double instead.
+            let clickTimer = null;
             L.DomEvent.on(btn, "click", (ev) => {
-                L.DomEvent.preventDefault(ev);
-                L.DomEvent.stopPropagation(ev);
-                recenterOnOwnShip();
-                // Recenter is also the "re-engage follow" affordance when
-                // nav-mode is on (after a drag broke follow). Outside nav-mode
-                // this flag is irrelevant.
-                if (navModeOn) navFollowing = true;
+                L.DomEvent.stop(ev);
+                if (clickTimer !== null) return; // 2nd click → dblclick handles it
+                clickTimer = setTimeout(() => {
+                    clickTimer = null;
+                    onRecenterSingleClick();
+                }, RECENTER_DBLCLICK_MS);
             });
-            // Hidden until a player unit appears.
+            L.DomEvent.on(btn, "dblclick", (ev) => {
+                L.DomEvent.stop(ev);
+                if (clickTimer !== null) {
+                    clearTimeout(clickTimer);
+                    clickTimer = null;
+                }
+                onRecenterDoubleClick();
+            });
+            // Hidden until a player unit appears or a unit is selected.
             container.style.display = "none";
             return container;
         },
@@ -1343,6 +1413,7 @@ function removeUnit(id) {
         unitsById.delete(id);
     }
     fogMemory.delete(id);
+    if (followedUnitId === id) setFollow(null);
     if (selectedUnitId === id) {
         selectedUnitId = null;
         refreshTelemetry();
@@ -1629,6 +1700,10 @@ function applySnapshot(units) {
         selectedUnitId = null;
         refreshTelemetry();
     }
+    // A mission/snapshot reset stops any active follow (the followed id may no
+    // longer map to a real unit). Unconditional — also covers nav-following the
+    // own-ship with nothing selected.
+    setFollow(null);
     for (const u of units) upsertUnit(u);
     refreshMarkVisibilityIfPlayerChanged();
     maybeAutoCenterOnOwnShip();
@@ -2581,20 +2656,28 @@ function selectUnit(id) {
     const entry = unitsById.get(id);
     if (!entry) return;
     selectedUnitId = id;
+    // Switching the selection stops any active follow ("another unit is
+    // selected"). Unconditional so it also breaks a follow held without a prior
+    // selection (e.g. nav-following the own-ship). The double-click path
+    // re-establishes follow right after this returns.
+    setFollow(null);
     setStickyTooltip(entry.marker, true);
     refreshUnitIcon(entry); // key includes selection → rebuilds (fog-aware)
     refreshTelemetry();
+    updateRecenterControlVisibility();
 }
 
 function deselectUnit() {
     if (selectedUnitId === null) return;
     const entry = unitsById.get(selectedUnitId);
     selectedUnitId = null; // clear before refresh so the icon comes back unselected
+    setFollow(null); // deselecting the followed unit stops following
     if (entry) {
         setStickyTooltip(entry.marker, false);
         refreshUnitIcon(entry);
     }
     refreshTelemetry();
+    updateRecenterControlVisibility();
 }
 
 function handleUnitClick(id) {
@@ -2757,21 +2840,14 @@ function connectWebSocket() {
                     refreshMarkVisibilityIfPlayerChanged();
                     maybeAutoCenterOnOwnShip();
                     updateRecenterControlVisibility();
-                    // Nav mode always follows the own-ship for *data*
-                    // (WP/BRG/DIST/ETA). Map-follow is gated behind navFollowing
-                    // — engaged on nav-on / recenter, broken by a user drag, so
-                    // the user is never fighting the map.
-                    if (navModeOn) {
-                        refreshNavPanel();
-                        if (navFollowing) {
-                            const player = findPlayerUnit();
-                            if (player && msg.unit.id === player.id) {
-                                // animate:false — unit updates arrive faster
-                                // than a smooth pan could complete, so any
-                                // animation would stutter.
-                                map.panTo([msg.unit.lat, msg.unit.lon], { animate: false });
-                            }
-                        }
+                    // Nav panel data (WP/BRG/DIST/ETA) tracks the own-ship every
+                    // tick, independent of map-follow.
+                    if (navModeOn) refreshNavPanel();
+                    // Map-follow: keep the followed unit centered as it moves.
+                    // animate:false — unit updates arrive faster than a smooth
+                    // pan could complete, so any animation would stutter.
+                    if (followedUnitId !== null && msg.unit.id === followedUnitId) {
+                        map.panTo([msg.unit.lat, msg.unit.lon], { animate: false });
                     }
                     // Player moved → Self row in measure panel needs an update.
                     if (measureState) refreshMeasureReadout();

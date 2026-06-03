@@ -612,6 +612,21 @@ html, body {
         border-radius: 6px;
     }
     .nav-wp-controls { gap: 8px; }
+
+    /* Recenter-on-own-ship button — a comfortable fingertip target on tablets,
+       well above the 44px minimum, since it's the primary "snap back to me"
+       affordance during flight. Icon scales up to match. The extra
+       `.leaflet-control` class (also on the container) is pure specificity: this
+       block lives *before* the base recenter rule in source, so to win when the
+       query matches it must outrank the base's (0,3,0) — not just tie it. */
+    .mizmap-recenter.leaflet-bar.leaflet-control .mizmap-recenter-btn {
+        width: 52px;
+        height: 52px;
+    }
+    .mizmap-recenter.leaflet-bar.leaflet-control .mizmap-recenter-btn svg {
+        width: 30px;
+        height: 30px;
+    }
 }
 
 /* Phone portrait: tighten the telemetry grid further so it doesn't crowd the map. */
@@ -824,18 +839,38 @@ html, body {
 }
 .settings-save:hover { background: #6f9bf2; }
 
-/* Recenter-on-own-ship button (Leaflet bottom-left control). */
-.mizmap-recenter .mizmap-recenter-btn {
+/* Recenter-on-own-ship button (Leaflet bottom-left control). Bumped a touch
+   above the 30px Leaflet default for visibility; the touch query below grows it
+   to a comfortable fingertip target. The icon is sized here (CSS wins over the
+   inline width/height attributes on the SVG) so it scales with the button.
+   The `.leaflet-bar` class (also on the container) is included only to outrank
+   Leaflet's own `.leaflet-touch .leaflet-bar a` width/height — drop it and the
+   button silently stays 30px on touch-capable browsers. */
+.mizmap-recenter.leaflet-bar .mizmap-recenter-btn {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 30px;
-    height: 30px;
+    width: 36px;
+    height: 36px;
     color: #1b1b1b;
     text-decoration: none;
 }
-.mizmap-recenter .mizmap-recenter-btn:hover {
+.mizmap-recenter.leaflet-bar .mizmap-recenter-btn svg {
+    width: 22px;
+    height: 22px;
+}
+.mizmap-recenter.leaflet-bar .mizmap-recenter-btn:hover {
     background-color: #f4f4f4;
+}
+/* Active state: stays highlighted (coalition-blue accent, matching the "on"
+   toggles) while the map is following a unit, so the follow toggle's state
+   reads at a glance. */
+.mizmap-recenter.leaflet-bar .mizmap-recenter-btn.is-following {
+    background-color: #5b8def;
+    color: #fff;
+}
+.mizmap-recenter.leaflet-bar .mizmap-recenter-btn.is-following:hover {
+    background-color: #6f9bf2;
 }
 
 /* Navigation-mode floating panel — center-right, vertical layout. The toggle
