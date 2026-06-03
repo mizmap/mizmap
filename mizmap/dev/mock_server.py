@@ -180,6 +180,24 @@ def _build_scenario() -> list[MockUnit]:
             heading_rad=math.radians(45),
             speed_mps=10.0,
         ),
+        # A train (group_category 5) — rare in DCS, and on the frontend it has no
+        # chip of its own: it rides the Ground filter (see shouldShow's 5→3 fold).
+        # Renders as a ground-equipment symbol in its coalition color.
+        MockUnit(
+            id=5,
+            name="Locomotive-1",
+            callsign="RAILGUN",
+            type="Locomotive",
+            coalition=common_pb2.COALITION_RED,
+            group_id=40,
+            group_name="Rail Convoy",
+            group_category=common_pb2.GROUP_CATEGORY_TRAIN,
+            lat=43.16,
+            lon=40.58,  # inland near Gudauta, on the coastal rail corridor
+            alt=20.0,
+            heading_rad=math.radians(85),  # heads ~east, staying over land
+            speed_mps=14.0,
+        ),
     ]
 
 

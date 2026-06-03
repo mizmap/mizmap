@@ -121,6 +121,92 @@ html, body {
     text-decoration: line-through;
 }
 
+/* Coalition + Units filters render as a grid of toggle chips (icon/shape +
+   caption) instead of label+switch rows. Capped at 3 columns so Units' 5 chips
+   wrap to 3+2 and the panel never gets wide on a tablet. The hidden checkbox
+   (carrying data-filter/data-value) keeps the existing JS wiring; the chip's
+   own appearance is the on/off control. */
+.filter-chips {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+    padding-top: 2px;
+}
+
+/* Units has 4 chips → a tidy 2×2 block (trains fold into Ground). */
+.filter-chips-2col {
+    grid-template-columns: repeat(2, 1fr);
+}
+
+.filter-chip {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 3px;
+    padding: 6px 3px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.03);
+    cursor: pointer;
+    text-align: center;
+    transition: opacity 120ms ease, border-color 120ms ease, background-color 120ms ease;
+}
+
+.filter-chip input[type="checkbox"] {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+    width: 0;
+    height: 0;
+}
+
+.chip-glyph {
+    width: 22px;
+    height: 22px;
+    display: block;
+}
+
+.chip-cap {
+    font-size: 10px;
+    line-height: 1.1;
+    color: #d6d6d6;
+}
+
+/* OFF: dimmed + desaturated, caption muted. */
+.filter-chip:has(input:not(:checked)) {
+    opacity: 0.42;
+    filter: grayscale(0.65);
+}
+.filter-chip:has(input:not(:checked)) .chip-cap {
+    color: #9aa0a6;
+}
+
+/* Coalition chips: the affiliation frame shape is drawn in the map's coalition
+   color; the ON chip tints its border/background with that color too. */
+.coal-blue { --chip-color: #5b8def; }
+.coal-red { --chip-color: #e07c7c; }
+.coal-neutral { --chip-color: #9aa0a6; }
+
+.filter-chip-coal .chip-glyph {
+    stroke: var(--chip-color);
+}
+
+.filter-chip-coal:has(input:checked) {
+    border-color: color-mix(in srgb, var(--chip-color) 55%, transparent);
+    background: color-mix(in srgb, var(--chip-color) 15%, transparent);
+}
+
+/* Unit chips have no inherent color: neutral glyph, light highlight when ON. */
+.filter-chip-unit .chip-glyph {
+    stroke: #d6d6d6;
+}
+
+.filter-chip-unit:has(input:checked) {
+    border-color: rgba(255, 255, 255, 0.28);
+    background: rgba(255, 255, 255, 0.07);
+}
+
 .filter-row-select {
     padding-left: 22px;
     gap: 6px;
@@ -614,6 +700,10 @@ html, body {
     }
     .filter-version {
         font-size: 13px;
+    }
+    /* Chip captions bump to match the larger touch text. */
+    .chip-cap {
+        font-size: 11px;
     }
     .filter-select {
         font-size: 13px;

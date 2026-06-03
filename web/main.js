@@ -204,11 +204,13 @@ const PLAYER_DEC_REFRESH_MS = 30000;
 // AND-logic: a unit shows only if BOTH its coalition AND its category are enabled.
 // All-on is the default and produces an empty hash for a clean URL.
 const HASH_COAL = { 1: "n", 2: "r", 3: "b" }; // DCS Coalition enum
-const HASH_CAT = { 1: "a", 2: "h", 3: "g", 4: "s", 5: "t" }; // GroupCategory enum
+// GroupCategory enum. Train (5) is folded into Ground (3) — see shouldShow —
+// so it has no chip and no hash letter of its own.
+const HASH_CAT = { 1: "a", 2: "h", 3: "g", 4: "s" };
 const HASH_LAYER = { routes: "r", bullseyes: "b", airbases: "f", navaids: "n", marks: "k", measure: "m", threats: "t", vectors: "v", trails: "l" };
 const FILTERS = {
     coalition: { 1: true, 2: true, 3: true },
-    category: { 1: true, 2: true, 3: true, 4: true, 5: true },
+    category: { 1: true, 2: true, 3: true, 4: true },
     layers: { routes: true, bullseyes: true, airbases: true, navaids: true, marks: true, measure: true, threats: true, vectors: true, trails: true },
     trailLengthSec: TRAIL_LENGTH_DEFAULT_SEC,
     // Fog lens is its own slice (default off) rather than a `layers` flag so it
@@ -216,6 +218,7 @@ const FILTERS = {
     // (own ship) | "1"|"2"|"3" (neutral/red/blue). memorySec: ghost window.
     fog: { on: false, viewpoint: "auto", memorySec: FOG_MEMORY_DEFAULT_SEC },
 };
+const N_CAT_FLAGS = Object.keys(HASH_CAT).length;
 const N_LAYER_FLAGS = Object.keys(HASH_LAYER).length;
 // Set by decodeHash when the URL carries `trail=`. Init uses it to decide
 // whether to fall back to localStorage (hash wins; localStorage is the
@@ -257,7 +260,10 @@ let navWpIndexOverride = null;
 
 function shouldShow(u) {
     if (FILTERS.coalition[u.coalition] !== true) return false;
-    if (FILTERS.category[u.group.category] !== true) return false;
+    // Trains (category 5) have no chip of their own — they ride the Ground (3)
+    // filter, since a train is a surface/land unit.
+    const cat = u.group.category === 5 ? 3 : u.group.category;
+    if (FILTERS.category[cat] !== true) return false;
     return fogVisInfo(u).show;
 }
 
@@ -590,7 +596,7 @@ function encodeHash() {
         .filter(([, on]) => on)
         .map(([k]) => HASH_LAYER[k])
         .join("");
-    const filtersAllOn = c.length === 3 && g.length === 5 && l.length === N_LAYER_FLAGS;
+    const filtersAllOn = c.length === 3 && g.length === N_CAT_FLAGS && l.length === N_LAYER_FLAGS;
     const view = encodeView();
     const parts = [];
     if (!filtersAllOn) parts.push(`coal=${c}`, `cat=${g}`, `layers=${l}`);
