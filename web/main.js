@@ -106,6 +106,7 @@ const routesByGroupId = new Map(); // group_id -> { layer: L.LayerGroup, data, v
 const bullseyesByCoalition = new Map(); // coalition -> { marker, data, visible }
 const airbasesByName = new Map(); // name -> { layer: L.LayerGroup, data, visible }
 const runwaysByKey = new Map(); // key -> { layer: L.LayerGroup, data, visible }
+const runwaysByAirbase = new Map(); // airbase_name -> [<runway>, ...] (for the airbase tooltip)
 const navaidsByKey = new Map(); // key -> { marker, data, visible }
 const marksById = new Map(); // id -> { marker, data, visible }
 
@@ -128,6 +129,19 @@ const AIRBASE_CAT_NAMES = { 1: "Airfield", 2: "FARP", 3: "Ship" };
 // Runways are coalition-neutral terrain — light grey, ride the Airbases toggle.
 const RUNWAY_COLOR = "#e6e6e6";
 const RUNWAY_WEIGHT = 4;
+// Schematic dashed treatment: a thin dashed centerline reads as a data
+// annotation rather than a second (slightly-tilted) runway, so the small
+// DCS-vs-basemap orientation gap stops clashing with the strip underneath.
+// Opacity is zoom-driven (applyRunwayFade) — full when zoomed out for
+// orientation, faded as you zoom in, where the base map shows the real runway.
+const RUNWAY_LINE_WEIGHT = 1.75;
+const RUNWAY_CASING_WEIGHT = 3; // thin halo for legibility on any base-map tone
+const RUNWAY_DASH = "3 6";
+const RUNWAY_FADE_ZOOM_FULL = 11; // ≤ here: full opacity
+const RUNWAY_FADE_ZOOM_MIN = 15; // ≥ here: faded out (base map shows the strip)
+const RUNWAY_BASE_OPACITY = 0.9;
+const RUNWAY_MIN_OPACITY = 0.12;
+const RUNWAY_CASING_RATIO = 0.45; // casing stays subordinate to the dashed line
 // Navaids — bright cyan FILLED glyphs with a white halo + dark outline. Chart
 // magenta was unreadable against DCS terrain (reddish mountains, purple admin
 // boundaries, red airport hatching all clash); cyan is the complementary pop
@@ -760,6 +774,8 @@ function buildMap(config) {
     m.on("moveend", encodeHash);
     // Waypoint label collisions depend on pixel distances → re-run on zoom.
     m.on("zoomend", declutterAllRouteLabels);
+    // Runways fade as you zoom in (defer to the base map's own depiction).
+    m.on("zoomend", applyRunwayFade);
     // A user drag is the explicit "I want to look elsewhere" signal that breaks
     // nav-mode's continuous map-follow. Wheel/double-click zoom + programmatic
     // setView intentionally do NOT break follow.
@@ -1821,7 +1837,19 @@ function tooltipForAirbase(a) {
     const cat = AIRBASE_CAT_NAMES[a.category] || "Airbase";
     const coal = COAL_NAMES[a.coalition] || "?";
     const name = a.display_name || a.name || a.callsign || "Airbase";
-    return `<b>${escapeHtml(name)}</b><br>${cat} · ${coal}<br>elev ${altFt} ft`;
+    // Runways live here (not on the faded line, which is a poor hover target):
+    // one row per runway, deduped by designator pair. Keyed on the DCS airbase
+    // name, which matches each runway's airbase_name.
+    const seen = new Set();
+    const rwRows = [];
+    for (const rw of runwaysByAirbase.get(a.name) || []) {
+        const pair = runwayDesignatorPair(rw.name);
+        if (seen.has(pair)) continue;
+        seen.add(pair);
+        rwRows.push(runwayInfoLine(rw));
+    }
+    const rwHtml = rwRows.length ? `<br>${rwRows.join("<br>")}` : "";
+    return `<b>${escapeHtml(name)}</b><br>${cat} · ${coal}<br>elev ${altFt} ft${rwHtml}`;
 }
 
 function buildAirbaseLayer(a) {
@@ -1850,7 +1878,15 @@ function buildAirbaseLayer(a) {
             .setContent(escapeHtml(name))
             .addTo(group);
     }
-    return group;
+    return { group, marker };
+}
+
+// Re-render every airbase tooltip — called when the runways snapshot lands so
+// fields pick up their runway rows regardless of snapshot arrival order.
+function refreshAirbaseTooltips() {
+    for (const entry of airbasesByName.values()) {
+        if (entry.marker) entry.marker.setTooltipContent(tooltipForAirbase(entry.data));
+    }
 }
 
 function applyAirbaseVisibility(entry) {
@@ -1875,11 +1911,11 @@ function applyAirbasesSnapshot(airbases) {
     }
     airbasesByName.clear();
     airbases.forEach((a, i) => {
-        const layer = buildAirbaseLayer(a);
+        const { group, marker } = buildAirbaseLayer(a);
         // Names are unique within a theatre; fall back to index for the rare
         // unnamed airbase so entries never collide.
         const key = (a.name && a.name.trim()) || `#${i}`;
-        const entry = { layer, data: a, visible: false };
+        const entry = { layer: group, marker, data: a, visible: false };
         airbasesByName.set(key, entry);
         applyAirbaseVisibility(entry);
     });
@@ -1897,12 +1933,13 @@ function runwayDesignatorPair(name) {
     return `${pad(Math.min(n, recip))}/${pad(Math.max(n, recip))}`;
 }
 
-function tooltipForRunway(rw) {
+// One runway's row for the airbase tooltip: designator pair, true heading, and
+// length (ft + m). Was the runway line's own tooltip; moved to the airbase.
+function runwayInfoLine(rw) {
     const hdgT = (Math.round((rw.course * 180) / Math.PI) % 360 + 360) % 360;
     const lenM = Math.round(rw.length_m);
     const lenFt = Math.round(rw.length_m * M_TO_FT).toLocaleString("en-US");
-    const ab = rw.airbase_name ? escapeHtml(rw.airbase_name) + " " : "";
-    return `<b>${ab}RWY ${runwayDesignatorPair(rw.name)}</b><br>${String(hdgT).padStart(3, "0")}°T · ${lenFt} ft (${lenM} m)`;
+    return `RWY ${runwayDesignatorPair(rw.name)} · ${String(hdgT).padStart(3, "0")}°T · ${lenFt} ft (${lenM} m)`;
 }
 
 function buildRunwayLayer(rw) {
@@ -1910,24 +1947,45 @@ function buildRunwayLayer(rw) {
     const half = rw.length_m / 2;
     const a = projectLatLon(rw.lat, rw.lon, rw.course, half);
     const b = projectLatLon(rw.lat, rw.lon, rw.course + Math.PI, half);
-    // Cased line: dark underlay (non-interactive) + light interactive overlay
-    // carrying the tooltip. Drawn on the default overlay pane, below the airbase
-    // symbol markers (markerPane), so the symbol sits atop its runways.
-    L.polyline([a, b], {
+    // Thin halo (non-interactive) for legibility on any base-map tone — far
+    // lighter than the old full casing, so it no longer reads as a runway edge.
+    const casing = L.polyline([a, b], {
         color: CASING_COLOR,
-        weight: RUNWAY_WEIGHT + 3,
-        opacity: CASING_OPACITY,
+        weight: RUNWAY_CASING_WEIGHT,
+        opacity: RUNWAY_BASE_OPACITY * RUNWAY_CASING_RATIO,
         interactive: false,
     }).addTo(group);
-    const overlay = L.polyline([a, b], {
+    // Schematic dashed centerline — purely visual (non-interactive): its data
+    // now lives in the airbase tooltip, since a faded line is a poor hover
+    // target. Drawn below the airbase symbol markers (markerPane).
+    const line = L.polyline([a, b], {
         color: RUNWAY_COLOR,
-        weight: RUNWAY_WEIGHT,
-        opacity: 0.95,
+        weight: RUNWAY_LINE_WEIGHT,
+        opacity: RUNWAY_BASE_OPACITY,
+        dashArray: RUNWAY_DASH,
+        interactive: false,
     });
-    overlay.bindTooltip(tooltipForRunway(rw), { direction: "top", sticky: true });
-    overlay.on("click", toggleStickyTooltip);
-    overlay.addTo(group);
-    return group;
+    line.addTo(group);
+    return { group, line, casing };
+}
+
+// Option 2: opacity ramps from full (zoomed out, for orientation) down to a
+// faint hint (zoomed in, where the base map renders the runway itself and the
+// DCS-vs-OSM tilt would otherwise clash). Linear between the two zoom bounds.
+function runwayOpacityForZoom(zoom) {
+    if (zoom <= RUNWAY_FADE_ZOOM_FULL) return RUNWAY_BASE_OPACITY;
+    if (zoom >= RUNWAY_FADE_ZOOM_MIN) return RUNWAY_MIN_OPACITY;
+    const t = (zoom - RUNWAY_FADE_ZOOM_FULL) / (RUNWAY_FADE_ZOOM_MIN - RUNWAY_FADE_ZOOM_FULL);
+    return RUNWAY_BASE_OPACITY + t * (RUNWAY_MIN_OPACITY - RUNWAY_BASE_OPACITY);
+}
+
+function applyRunwayFade() {
+    if (!map) return;
+    const op = runwayOpacityForZoom(map.getZoom());
+    for (const entry of runwaysByKey.values()) {
+        if (entry.line) entry.line.setStyle({ opacity: op });
+        if (entry.casing) entry.casing.setStyle({ opacity: op * RUNWAY_CASING_RATIO });
+    }
 }
 
 // Runways ride the Airbases layer toggle (they're part of the airbase picture)
@@ -1957,12 +2015,18 @@ function applyRunwaysSnapshot(runways) {
         if (visible) layer.remove();
     }
     runwaysByKey.clear();
+    runwaysByAirbase.clear();
     runways.forEach((rw, i) => {
-        const layer = buildRunwayLayer(rw);
-        const entry = { layer, data: rw, visible: false };
+        const { group, line, casing } = buildRunwayLayer(rw);
+        const entry = { layer: group, line, casing, data: rw, visible: false };
         runwaysByKey.set(`${rw.airbase_name}/${rw.name}/${i}`, entry);
+        if (!runwaysByAirbase.has(rw.airbase_name)) runwaysByAirbase.set(rw.airbase_name, []);
+        runwaysByAirbase.get(rw.airbase_name).push(rw);
         applyRunwayVisibility(entry);
     });
+    applyRunwayFade();
+    // Runways carry the data shown in the airbase tooltip — refresh those now.
+    refreshAirbaseTooltips();
 }
 
 // --- navaids ----------------------------------------------------------------
