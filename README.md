@@ -77,7 +77,12 @@ Tiles are served by a local proxy at `/tiles/{z}/{x}/{y}.png` and cached to disk
 
 ## Development
 
-See [`.journal/`](.journal/) for development notes per session.
+See [`.journal/`](.journal/) for development notes per session (git-ignored —
+local to the maintainer's machine). Longer-lived engineering notes that travel
+with the repo live in [`notes/`](notes/) — e.g.
+[runway overlay alignment](notes/runway-overlay-alignment.md) (why the
+DCS-sourced runway overlay can look angled vs. the base map, and why it isn't a
+bug).
 
 ## Building the Windows installer
 
