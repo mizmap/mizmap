@@ -118,7 +118,6 @@ html, body {
 
 .filter-row:has(input:not(:checked)) .filter-name {
     color: #6a6a6a;
-    text-decoration: line-through;
 }
 
 /* Coalition + Units filters render as a grid of toggle chips (icon/shape +
