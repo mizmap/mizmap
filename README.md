@@ -62,18 +62,19 @@ Per-user config lives at `%APPDATA%\MizMap\config.toml` (commented template writ
 
 ## Configuration
 
-Environment variables:
+Settings resolve from three places, highest priority first: environment variables (`MIZMAP_*`), a `config.toml` in the per-user config dir (`%APPDATA%\MizMap` when installed, the working dir in dev), then built-in defaults / auto-detection. Most keys are also editable live from the in-app **Settings** panel (the gear in the controls panel, or *Settings…* on the tray icon), which writes `config.toml` for you — no hand-editing required.
 
 | Var | Default | Purpose |
 |---|---|---|
-| `MIZMAP_HTTP_HOST` | `0.0.0.0` | Bind address for the web/WS server. |
+| `MIZMAP_HTTP_HOST` | `0.0.0.0` | Bind address for the web/WS server (`0.0.0.0` = reachable by LAN tablets; `127.0.0.1` = local only). |
 | `MIZMAP_HTTP_PORT` | `8766` | Port for the web/WS server. |
 | `MIZMAP_GRPC_HOST` | `127.0.0.1` | Host running DCS-gRPC. |
 | `MIZMAP_GRPC_PORT` | `50051` | DCS-gRPC port. |
-| `MIZMAP_TILE_URL` | OpenTopoMap | Upstream tile URL template (fetched on cache miss). |
+| `MIZMAP_DCS_INSTALL_DIR` | auto-detect | DCS install folder, used to read the loaded theatre's navaids. Auto-detected from the registry + common paths on Windows. |
+| `MIZMAP_TILE_URL` | OpenTopoMap | Upstream URL template for the **topographic** basemap (fetched on cache miss). |
 | `MIZMAP_TILE_CACHE_DIR` | `./cache/tiles` | Where the local tile proxy stores its on-disk cache. |
 
-Tiles are served by a local proxy at `/tiles/{z}/{x}/{y}.png` and cached to disk on first fetch — so dev iteration doesn't burn `MIZMAP_TILE_URL`'s rate limit, LAN viewers share one warm cache, and the map keeps working offline once warm. Wipe with `mizmap clear-cache`.
+The viewer offers three basemaps — **Topographic**, **Streets**, and **Satellite** — selectable from the controls panel (the choice rides the URL hash). Tiles are served by a local proxy at `/tiles/{source}/{z}/{x}/{y}` and cached per-source to disk on first fetch — so dev iteration doesn't burn the upstream rate limit, LAN viewers share one warm cache, and the map keeps working offline once warm. Wipe all sources with `mizmap clear-cache`.
 
 ## Development
 

@@ -65,7 +65,7 @@
       <div class="container hero-shot">
         <figure class="shot shot-hero">
           <img src="assets/hero.png" alt="MizMap viewer showing a topographic map with NATO and Warsaw Pact unit symbols, threat rings, and a flight plan overlay." />
-          <figcaption>Live mission view — topographic map, MIL-STD-2525C symbology, SAM threat rings, mission flight plan.</figcaption>
+          <figcaption>Live mission view — MIL-STD-2525C symbology, SAM threat rings, mission flight plan, airfields and navaids, over a real-world topographic map.</figcaption>
         </figure>
       </div>
     </section>
@@ -83,8 +83,9 @@
         <p class="why-body">
           DCS's in-game F10 map enforces whatever visibility options the mission designer baked in.
           MizMap doesn't. It reads the mission state directly from DCS-gRPC and renders it on a
-          real-world topographic map, and you toggle the layers: coalition filter, category filter,
-          threat rings, flight plans, F10 marks, trails — all client-side, all your call.
+          real-world map — topographic, street, or satellite — and you toggle the layers: coalitions,
+          unit categories, threat rings, flight plans, airfields, navaids, F10 marks, trails — all
+          client-side, all your call.
         </p>
       </div>
     </section>
@@ -98,11 +99,15 @@
           <div class="feature-text">
             <h3>Pick what's visible</h3>
             <p>
-              The filter panel is the whole point. iOS-style toggles for both
-              coalitions (Blue, Red, Neutral) and unit categories (Plane,
-              Helo, Ground, Ship, Train), plus per-layer toggles for routes,
-              bullseyes, F10 marks, the ruler, threat rings, velocity vectors,
-              and motion trails. Setting stays put across reloads.
+              The filter panel is the whole point. Toggle chips for coalitions
+              (Blue, Red, Neutral) and unit categories (Plane, Helo, Ground,
+              Ship), then a stack of per-layer switches — routes, bullseyes,
+              airfields, navaids, F10 marks, the ruler, threat rings, movement
+              vectors, and motion trails — in collapsible sections, with the
+              basemap picker and fog lens tucked alongside. A top bar carries
+              the version, live gRPC/WebSocket status dots, and the Settings
+              gear. Every choice rides the URL hash, so a view is bookmarkable
+              and survives reloads.
             </p>
           </div>
           <figure class="shot">
@@ -142,9 +147,11 @@
           <div class="feature-text">
             <h3>Click-to-measure BRA</h3>
             <p>
-              Middle-click anywhere on the map to drop one end of a ruler, click again for the other.
-              You get magnetic bearing, slant range, and elevation delta — terrain elevation comes
-              straight from DCS, not from a tile heightmap.
+              Middle-click anywhere to start a live ruler that tracks your cursor; click again to
+              lock it. Read magnetic bearing and slant range both ways — plus bearing from bullseye —
+              alongside the target's MGRS, lat/long, and true DCS terrain elevation (straight from
+              DCS, not a tile heightmap). Every row has one-tap copy, and the labels lie along the
+              line so they never block the map.
             </p>
           </div>
           <figure class="shot">
@@ -168,6 +175,23 @@
 
         <div class="feature alt">
           <div class="feature-text">
+            <h3>Airfields, runways &amp; navaids</h3>
+            <p>
+              Every airfield and FARP drawn as a MIL-STD-2525C installation symbol with its name,
+              each runway as a true-length, true-heading overlay that fades back as you zoom in to
+              the real strip, and the theatre's navaids — NDB, VOR, DME, TACAN, VORTAC, ILS and
+              more — as colour-coded glyphs with callsign, frequency, and channel on hover.
+              Airfields and runways stream live from DCS-gRPC; navaids are read from the loaded
+              terrain. One toggle each.
+            </p>
+          </div>
+          <figure class="shot">
+            <img src="assets/airfields.png" alt="A satellite view of the Bandar Abbas coastline with the airfield's installation symbol, runway overlay, and a scatter of bright-cyan navaid glyphs for VOR, DME, TACAN, and NDB stations standing out against the dark water." />
+          </figure>
+        </div>
+
+        <div class="feature">
+          <div class="feature-text">
             <h3>SAM &amp; AAA threat rings</h3>
             <p>
               Published max engagement ranges for known SAM and AAA systems, drawn live around each
@@ -181,7 +205,7 @@
           </figure>
         </div>
 
-        <div class="feature">
+        <div class="feature alt">
           <div class="feature-text">
             <h3>Navigation mode</h3>
             <p>
@@ -195,7 +219,7 @@
           </figure>
         </div>
 
-        <div class="feature alt">
+        <div class="feature">
           <div class="feature-text">
             <h3>Fog-of-war preview</h3>
             <p>
@@ -216,6 +240,9 @@
         </div>
 
         <ul class="feature-bullets">
+          <li><strong>Selectable basemap.</strong> Topographic, street, or satellite imagery — switch live; the choice rides the URL.</li>
+          <li><strong>Cursor coordinate readout.</strong> Live MGRS and lat/long under the pointer, always a tap away in the measure panel.</li>
+          <li><strong>In-app settings.</strong> A built-in panel points MizMap at DCS and DCS-gRPC and sets the web port and LAN bind address — no config files to hand-edit.</li>
           <li><strong>Vector trails.</strong> Configurable-length motion trails so a fast-mover's track is obvious at a glance.</li>
           <li><strong>Local tile cache.</strong> Works offline once warm. No more tile-server rate-limit surprises.</li>
           <li><strong>LAN-friendly.</strong> Open the viewer from any browser on the same network — phone, tablet, second PC.</li>
