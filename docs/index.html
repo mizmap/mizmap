@@ -4,10 +4,10 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>MizMap - live moving map for DCS World</title>
-  <meta name="description" content="A live moving-map viewer for single-player DCS World missions. You choose what's visible." />
+  <meta name="description" content="A live map viewer for single-player DCS World missions. You choose what's visible." />
 
-  <meta property="og:title" content="MizMap - live moving map for DCS World" />
-  <meta property="og:description" content="A live moving-map viewer for single-player DCS World missions. You choose what's visible." />
+  <meta property="og:title" content="MizMap - live mission map for DCS World" />
+  <meta property="og:description" content="A live map viewer for single-player DCS World missions. You choose what's visible." />
   <meta property="og:type" content="website" />
   <meta property="og:url" content="https://mizmap.github.io/mizmap/" />
   <meta name="twitter:card" content="summary_large_image" />
@@ -43,7 +43,7 @@
         </div>
         <h1>MizMap</h1>
         <p class="lede">
-          A live moving-map viewer for DCS World with full-featured visibility controls.
+          A live map viewer for DCS World with full-featured visibility controls.
         </p>
         <div class="cta-row">
           <a id="download-btn" class="btn btn-primary" href="https://github.com/mizmap/mizmap/releases/latest">
@@ -55,14 +55,14 @@
           </a>
         </div>
         <p class="hero-note">
-          Open the viewer in a browser on the DCS PC or any device on the same Wi-Fi/LAN.
+          Use from a browser on the DCS PC or any device on the same network.
         </p>
       </div>
 
       <div class="container hero-shot">
         <figure class="shot shot-hero">
           <img src="assets/hero.png" alt="MizMap viewer showing a topographic map with NATO and Warsaw Pact unit symbols, threat rings, and a flight plan overlay." />
-          <figcaption>Live mission view - MIL-STD-2525C symbology, SAM threat rings, mission flight plan, airfields and navaids, over a real-world topographic map.</figcaption>
+          <figcaption>Live mission view - MIL-STD-2525C symbology, SAM threat rings, flight plan, airfields and navaids, over a real-world topographic map.</figcaption>
         </figure>
       </div>
     </section>
@@ -78,7 +78,7 @@
           DCS's in-game F10 map enforces whatever visibility options the mission designer baked in.
           MizMap doesn't. It reads the mission state directly from DCS-gRPC and renders it on a
           real-world map - topographic, street, or satellite - and you toggle the layers: coalitions,
-          unit categories, threat rings, flight plans, airfields, navaids, F10 marks, trails - all
+          unit types, threat rings, flight plans, airfields, navaids, F10 marks, trails - all
           client-side, under your control.
         </p>
         <p class="why-body">
@@ -98,7 +98,7 @@
             <h3>Pick what's visible</h3>
             <p>
               The filter panel has toggle chips for coalitions
-              (Blue/Red/Neutral) and unit categories (Plane, Helo, Ground,
+              (Blue/Red/Neutral) and unit types (Plane, Helo, Ground,
               Ship), then a stack of per-layer switches - routes, bullseyes,
               airfields, navaids, F10 marks, the ruler, threat rings, movement
               vectors, and motion trails - in collapsible sections, with the
@@ -106,7 +106,7 @@
             </p>
           </div>
           <figure class="shot">
-            <img src="assets/filters.png" alt="MizMap viewer with the filter panel open on the left, showing toggles for coalitions, unit categories, and map layers." />
+            <img src="assets/filters.png" alt="MizMap viewer with the filter panel open on the left, showing toggles for coalitions, unit types, and map layers." />
           </figure>
         </div>
 
@@ -326,7 +326,7 @@ MizMap backend (Python, FastAPI)
    └── serves the web viewer
    │
    ▼
-MizMap viewer (browser, Leaflet + MIL-STD-2525 symbology)
+MizMap viewer (browser, Leaflet + unit glyphs)
    on the DCS PC and/or a LAN tablet</code></pre>
       </div>
     </section>
@@ -339,11 +339,10 @@ MizMap viewer (browser, Leaflet + MIL-STD-2525 symbology)
           <img class="brand-glyph" src="assets/mizmap-icon.png" alt="" width="20" height="20" />
           <span class="brand-text">MizMap</span>
         </span>
-        <span class="muted">single-player DCS World moving-map viewer</span>
+        <span class="muted">Single-player DCS World live mission map</span>
       </div>
       <div class="footer-right muted">
-        Inspired by <a href="https://movingmap.bergison.com" target="_blank" rel="noopener">DCS&nbsp;MovingMap</a>
-        · <a href="https://github.com/mizmap/mizmap" target="_blank" rel="noopener">github.com/mizmap/mizmap</a>
+        <a href="https://github.com/mizmap/mizmap" target="_blank" rel="noopener">github.com/mizmap/mizmap</a>
       </div>
     </div>
   </footer>
