@@ -6,7 +6,7 @@ MizMap is built for free flight, self-training, and mission designers testing th
 
 DCS's in-game F10 map enforces whatever visibility options the mission designer baked in. MizMap doesn't. It reads the mission state directly from DCS-gRPC and renders it on a real-world map - topographic, street, or satellite - and you toggle the layers: coalitions, unit types, threat rings, flight plans, airfields, navaids, F10 marks, trails - all client-side, under your control.
 
-*Not recommended* for single player campaigns that deliberately limit the map - you'd be working around the designer's intent. Also, it's not a multiplayer tool: ethically off-limits, and technically blocked by the security flags any sane server has set. 
+*Not recommended* for single player campaigns that deliberately limit the map information - you'd be working around the designer's intent. Also, it's not a multiplayer tool: ethically off-limits, and technically blocked by the security flags any sane server has set. These are all scenarios already well served by [Bergison's DCS MovingMap](https://movingmap.bergison.com/).
 
 
 ## Architecture
