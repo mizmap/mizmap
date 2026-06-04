@@ -38,7 +38,7 @@ jobs:
         with:
           python-version: '3.11'
 
-      - uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
 
@@ -56,7 +56,7 @@ jobs:
         with:
           python-version: '3.11'
 
-      - uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
 
@@ -84,10 +84,20 @@ jobs:
         shell: pwsh
         run: scripts\build_windows.ps1 -Clean
 
+      - name: Resolve installer version
+        id: installer
+        shell: pwsh
+        run: |
+          $exe = Get-ChildItem packaging/dist/mizmap-setup-*.exe | Select-Object -First 1
+          if (-not $exe) { throw 'No installer found in packaging/dist' }
+          if ($exe.Name -notmatch 'mizmap-setup-(.+)\.exe$') { throw "Cannot parse version from $($exe.Name)" }
+          "version=$($Matches[1])" >> $env:GITHUB_OUTPUT
+          Write-Host "Installer: $($exe.Name)"
+
       - name: Upload installer artifact
         uses: actions/upload-artifact@v6
         with:
-          name: mizmap-installer
+          name: mizmap-setup-${{ steps.installer.outputs.version }}
           path: packaging/dist/mizmap-setup-*.exe
           if-no-files-found: error
 
