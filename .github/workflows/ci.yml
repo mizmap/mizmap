@@ -32,13 +32,13 @@ jobs:
   tests:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: '3.11'
 
-      - uses: astral-sh/setup-uv@v4
+      - uses: astral-sh/setup-uv@v6
         with:
           enable-cache: true
 
@@ -50,13 +50,13 @@ jobs:
     needs: tests
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: '3.11'
 
-      - uses: astral-sh/setup-uv@v4
+      - uses: astral-sh/setup-uv@v6
         with:
           enable-cache: true
 
@@ -85,7 +85,7 @@ jobs:
         run: scripts\build_windows.ps1 -Clean
 
       - name: Upload installer artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: mizmap-installer
           path: packaging/dist/mizmap-setup-*.exe
@@ -93,7 +93,7 @@ jobs:
 
       - name: Attach installer to GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: packaging/dist/mizmap-setup-*.exe
           fail_on_unmatched_files: true
