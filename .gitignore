@@ -29,6 +29,9 @@ htmlcov/
 .env.local
 # Written by the in-app Settings panel (user_config_dir = cwd in dev).
 config.toml
+# Local terrain Beacons.lua dropped in for navaid parsing on a box without a
+# DCS install (e.g. screenshot capture on the Mac dev box).
+beacons.lua
 
 # Claude Code per-machine settings
 .claude/settings.local.json
