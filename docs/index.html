@@ -3,10 +3,10 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>MizMap — live moving map for DCS World</title>
+  <title>MizMap - live moving map for DCS World</title>
   <meta name="description" content="A live moving-map viewer for single-player DCS World missions. You choose what's visible." />
 
-  <meta property="og:title" content="MizMap — live moving map for DCS World" />
+  <meta property="og:title" content="MizMap - live moving map for DCS World" />
   <meta property="og:description" content="A live moving-map viewer for single-player DCS World missions. You choose what's visible." />
   <meta property="og:type" content="website" />
   <meta property="og:url" content="https://mizmap.github.io/mizmap/" />
@@ -43,9 +43,7 @@
         </div>
         <h1>MizMap</h1>
         <p class="lede">
-          A live moving-map viewer for single-player DCS World missions.
-          <strong>You choose what's visible</strong> — MizMap doesn't enforce the
-          mission's in-game F10 view options.
+          A live moving-map viewer for DCS World with full-featured visibility controls.
         </p>
         <div class="cta-row">
           <a id="download-btn" class="btn btn-primary" href="https://github.com/mizmap/mizmap/releases/latest">
@@ -57,15 +55,14 @@
           </a>
         </div>
         <p class="hero-note">
-          Requires <a href="https://github.com/DCS-gRPC/rust-server" target="_blank" rel="noopener">DCS-gRPC rust-server</a>
-          installed in DCS. Open the viewer on the DCS PC, a second monitor, or any tablet on the same Wi-Fi.
+          Open the viewer in a browser on the DCS PC or any device on the same Wi-Fi/LAN.
         </p>
       </div>
 
       <div class="container hero-shot">
         <figure class="shot shot-hero">
           <img src="assets/hero.png" alt="MizMap viewer showing a topographic map with NATO and Warsaw Pact unit symbols, threat rings, and a flight plan overlay." />
-          <figcaption>Live mission view — MIL-STD-2525C symbology, SAM threat rings, mission flight plan, airfields and navaids, over a real-world topographic map.</figcaption>
+          <figcaption>Live mission view - MIL-STD-2525C symbology, SAM threat rings, mission flight plan, airfields and navaids, over a real-world topographic map.</figcaption>
         </figure>
       </div>
     </section>
@@ -76,16 +73,17 @@
         <h2 class="eyebrow">// Why</h2>
         <p class="why-body">
           MizMap is built for free flight, self-training, and mission designers testing their own work.
-          In a campaign that deliberately limits the map, you're working around the designer's
-          intent — your call. And it's not a multiplayer tool: ethically off-limits, and technically
-          blocked by the security flags any sane server has set.
         </p>
         <p class="why-body">
           DCS's in-game F10 map enforces whatever visibility options the mission designer baked in.
           MizMap doesn't. It reads the mission state directly from DCS-gRPC and renders it on a
-          real-world map — topographic, street, or satellite — and you toggle the layers: coalitions,
-          unit categories, threat rings, flight plans, airfields, navaids, F10 marks, trails — all
-          client-side, all your call.
+          real-world map - topographic, street, or satellite - and you toggle the layers: coalitions,
+          unit categories, threat rings, flight plans, airfields, navaids, F10 marks, trails - all
+          client-side, under your control.
+        </p>
+        <p class="why-body">
+          <i>Not recommended</i> for single player campaigns that deliberately limit the map - you'd be working around the designer's intent. Also, it's not a multiplayer tool: ethically off-limits, and technically
+          blocked by the security flags any sane server has set.
         </p>
       </div>
     </section>
@@ -99,15 +97,12 @@
           <div class="feature-text">
             <h3>Pick what's visible</h3>
             <p>
-              The filter panel is the whole point. Toggle chips for coalitions
-              (Blue, Red, Neutral) and unit categories (Plane, Helo, Ground,
-              Ship), then a stack of per-layer switches — routes, bullseyes,
+              The filter panel has toggle chips for coalitions
+              (Blue/Red/Neutral) and unit categories (Plane, Helo, Ground,
+              Ship), then a stack of per-layer switches - routes, bullseyes,
               airfields, navaids, F10 marks, the ruler, threat rings, movement
-              vectors, and motion trails — in collapsible sections, with the
-              basemap picker and fog lens tucked alongside. A top bar carries
-              the version, live gRPC/WebSocket status dots, and the Settings
-              gear. Every choice rides the URL hash, so a view is bookmarkable
-              and survives reloads.
+              vectors, and motion trails - in collapsible sections, with the
+              basemap picker and fog lens tucked alongside. Filter choices persist in the URL, so a view is bookmarkable and survives reloads.
             </p>
           </div>
           <figure class="shot">
@@ -119,10 +114,9 @@
           <div class="feature-text">
             <h3>MIL-STD-2525C symbology</h3>
             <p>
-              Proper military symbology via <code>milsymbol.js</code>, with per-DCS-type refinement
+              Proper SIDC symbology (via <code>milsymbol.js</code>) with per-DCS-type refinement
               (a Hornet shows as a strike fighter, an SA-10 as the right SAM family). Hover any unit
-              for its callsign and DCS type; click to pin the tooltip in place. Coarse coalition
-              ×&nbsp;category fallback for anything not yet in the type DB.
+              for its callsign and DCS type; click to pin the tooltip in place.
             </p>
           </div>
           <figure class="shot">
@@ -135,7 +129,7 @@
             <h3>Telemetry HUD</h3>
             <p>
               Own-ship strip: lat/lon, MGRS, altitude, ground and vertical speed, magnetic heading.
-              Auto-detects the player slot from DCS-gRPC; click any other unit to redirect the HUD.
+              Auto-detects the player slot; click any other unit to redirect the HUD.
             </p>
           </div>
           <figure class="shot">
@@ -145,13 +139,12 @@
 
         <div class="feature alt">
           <div class="feature-text">
-            <h3>Click-to-measure BRA</h3>
+            <h3>BRA ruler</h3>
             <p>
               Middle-click anywhere to start a live ruler that tracks your cursor; click again to
-              lock it. Read magnetic bearing and slant range both ways — plus bearing from bullseye —
+              lock it. Read magnetic bearing and slant range both ways - plus bearing from bullseye -
               alongside the target's MGRS, lat/long, and true DCS terrain elevation (straight from
-              DCS, not a tile heightmap). Every row has one-tap copy, and the labels lie along the
-              line so they never block the map.
+              DCS, not a tile heightmap). One-tap copy for each measurement.
             </p>
           </div>
           <figure class="shot">
@@ -163,9 +156,9 @@
           <div class="feature-text">
             <h3>Flight plan + F10 marks</h3>
             <p>
-              Mission waypoints rendered as polylines with always-on labels (name and ETA), pulled
-              from the live <code>env.mission</code> table. Every F10 mark you drop in DCS appears
-              on the map too — caption shown alongside — filtered by your own coalition and group.
+              Flight plan and waypoints render as polylines with always-on labels, pulled
+              from the live mission. F10 marks you drop in DCS appear
+              on the map too - filtered by your own coalition and group.
             </p>
           </div>
           <figure class="shot">
@@ -179,10 +172,7 @@
             <p>
               Every airfield and FARP drawn as a MIL-STD-2525C installation symbol with its name,
               each runway as a true-length, true-heading overlay that fades back as you zoom in to
-              the real strip, and the theatre's navaids — NDB, VOR, DME, TACAN, VORTAC, ILS and
-              more — as colour-coded glyphs with callsign, frequency, and channel on hover.
-              Airfields and runways stream live from DCS-gRPC; navaids are read from the loaded
-              terrain. One toggle each.
+              the real strip, and the theatre's navaids - NDB, VOR, DME, TACAN, VORTAC, ILS - as colour-coded glyphs with callsign, frequency, and channel on hover.
             </p>
           </div>
           <figure class="shot">
@@ -194,10 +184,8 @@
           <div class="feature-text">
             <h3>SAM &amp; AAA threat rings</h3>
             <p>
-              Published max engagement ranges for known SAM and AAA systems, drawn live around each
-              site as units move. Threat data lives in
-              <a href="https://github.com/mizmap/mizmap/blob/master/mizmap/data/units.yaml" target="_blank" rel="noopener"><code>mizmap/data/units.yaml</code></a>
-              — community-extensible.
+              Max engagement ranges for known SAM and AAA systems, drawn live around each
+              site as units move.
             </p>
           </div>
           <figure class="shot">
@@ -209,9 +197,7 @@
           <div class="feature-text">
             <h3>Navigation mode</h3>
             <p>
-              One toggle and the map starts following you, with a top-center panel for the next
-              waypoint: bearing (magnetic), distance, and ETA from current speed. Designed for a
-              second monitor or tablet kneeboard.
+              NAV toggle for flight plan controls with map centered on own-ship, and info on bearing (magnetic), distance, and ETA at current speed.
             </p>
           </div>
           <figure class="shot">
@@ -224,14 +210,10 @@
             <h3>Fog-of-war preview</h3>
             <p>
               Built for mission designers. Flip on the fog-of-war lens and the map stops being
-              god's-eye — it shows only what a chosen side would actually see in DCS's F10 view.
+              god's-eye - it shows only what a chosen side would actually see in DCS's F10 view.
               MizMap unions each coalition's live sensor detection and hides everything its sensors
               haven't found, so you can confirm an ambush stays hidden or that your AWACS reveals
-              the right picture. Detection confidence shapes the symbol: an unclassified contact
-              drops to a bare affiliation frame, an unranged one gets a dashed uncertainty ring, and
-              a lost contact lingers as a fading "last-known" ghost. Pick the viewpoint — own-ship,
-              Blue, Red, or Neutral — to inspect either side. Off by default: a lens you opt into,
-              never enforced.
+              the right picture. Unclassified contacts drop to a bare affiliation frame, unranged ones get a dashed uncertainty ring, and lost contacts linger as fading "last-known" ghosts.
             </p>
           </div>
           <figure class="shot">
@@ -243,8 +225,7 @@
           <div class="feature-text">
             <h3>Movement vectors &amp; trails</h3>
             <p>
-              Every moving unit carries a short fixed-length direction-vector stub — a heading arrow
-              you read at a glance — and a fading motion trail behind it. Set the trail from 15
+              Moving units carry a direction-vector stub and a fading trail. Set the trail from 15
               seconds to 5 minutes, so a fast-mover's recent track (here, a pair of Hornets in a
               racetrack orbit) reads instantly: where it's going, and where it's been.
             </p>
@@ -255,12 +236,12 @@
         </div>
 
         <ul class="feature-bullets">
-          <li><strong>Selectable basemap.</strong> Topographic, street, or satellite imagery — switch live; the choice rides the URL.</li>
-          <li><strong>Cursor coordinate readout.</strong> Live MGRS and lat/long under the pointer, always a tap away in the measure panel.</li>
-          <li><strong>In-app settings.</strong> A built-in panel points MizMap at DCS and DCS-gRPC and sets the web port and LAN bind address — no config files to hand-edit.</li>
+          <li><strong>Selectable basemap.</strong> Topographic, street, or satellite imagery.</li>
+          <li><strong>Cursor coordinate readout.</strong> Live MGRS and lat/long under the pointer, and always a tap away in the measure panel.</li>
+          <li><strong>In-app settings.</strong> No config files to hand-edit - a config menu points MizMap at DCS and DCS-gRPC and sets the web port and LAN bind address.</li>
           <li><strong>Local tile cache.</strong> Works offline once warm. No more tile-server rate-limit surprises.</li>
-          <li><strong>LAN-friendly.</strong> Open the viewer from any browser on the same network — phone, tablet, second PC.</li>
-          <li><strong>Responsive kneeboard layout.</strong> On a tablet or phone the panels collapse and the map fills the screen.</li>
+          <li><strong>LAN-friendly.</strong> Open the viewer from any browser on the same network - phone, tablet, second PC.</li>
+          <li><strong>Responsive kneeboard layout.</strong> View and controls adapt to tablet or phone screens.</li>
         </ul>
       </div>
     </section>
@@ -285,12 +266,13 @@
               Download <code>mizmap-setup-&lt;version&gt;.exe</code> from the latest
               <a href="https://github.com/mizmap/mizmap/releases/latest" target="_blank" rel="noopener">GitHub release</a>
               and run it. MizMap installs per-user under
-              <code>%LOCALAPPDATA%\Programs\MizMap\</code> — no admin needed.
+              <code>%LOCALAPPDATA%\Programs\MizMap\</code> - no admin needed.
             </p>
             <p class="note">
               The installer is unsigned, so SmartScreen shows an
               "unknown publisher" warning the first time. Click
-              <em>More info</em> → <em>Run anyway</em>.
+              <em>More info</em> → <em>Run anyway</em>. 
+              Uncomfortable with this? Read the code and run from source or build locally - see below. 
             </p>
           </li>
           <li>
@@ -304,9 +286,8 @@
           <li>
             <h3>Open from anywhere on the LAN</h3>
             <p>
-              Point any browser on the same Wi-Fi at
-              <code>http://&lt;dcs-pc-ip&gt;:8766</code>. Bring a tablet to the
-              cockpit; keep a second monitor as a kneeboard.
+              Point any browser, local or on the same network, at
+              <code>http://&lt;dcs-pc-ip&gt;:8766</code>. Use it kneeboard-like from a tablet or a second monitor.
             </p>
           </li>
         </ol>
@@ -327,10 +308,10 @@
       <div class="container">
         <h2 class="eyebrow">// Architecture</h2>
         <p class="arch-body">
-          DCS-gRPC streams unit and event data over a local socket. A small Python backend
+          DCS-gRPC streams unit and event data over a local socket. A Python backend
           (FastAPI&nbsp;+&nbsp;async&nbsp;gRPC) maintains the in-memory mission state and fans it
           out to browsers over a WebSocket. The viewer is vanilla JS&nbsp;+&nbsp;Leaflet with
-          MIL-STD-2525C symbology — no build step.
+          MIL-STD-2525C symbology - no frontend build step required.
         </p>
 <pre class="arch-diagram"><code>DCS World (Windows)
    │
