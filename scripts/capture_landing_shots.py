@@ -9,7 +9,14 @@ Run via:
 If no shot names are passed, captures all. Useful names: hero, symbols, hud,
 bra, routes, marks, threats, nav.
 
-Assumes `mizmap serve` is running on http://localhost:8766 with a live mission.
+A live DCS mission must be loaded and reachable (point `mizmap serve` at the box
+via MIZMAP_GRPC_HOST), with `mizmap serve` running on http://localhost:8766. The
+committed shots were all captured from ONE specific mission: "SCUD Alley" (A-10C
+II, PersianGulf map). The per-shot fixed views are tuned to that mission's
+geography (own-ship ~29.18,58.71, the Bam/Kerman area), so they reproduce against
+it. Eval must be enabled (routes/elevation). Exceptions: `trails.png` needs a
+MOVING mission (no `trails` shot here — a paused mission shows none), and
+`airfields.png` came from a separate Afghanistan mission.
 """
 
 from __future__ import annotations
