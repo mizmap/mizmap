@@ -205,20 +205,61 @@ def shot_hud(page: Page) -> None:
 
 
 def shot_bra(page: Page) -> None:
-    """Draw a measure line by middle-clicking two points on the map."""
+    """Live ruler from own-ship to a target, plus the bullseye line, showing the
+    angled split labels (reciprocal bearings above, distance below).
+
+    Reads the own-ship's live position from the telemetry HUD, picks the nearest
+    bullseye (the player's own coalition), and places the target south of both so
+    the two lines fork apart and both midpoint labels stay clear. The dynamic
+    ruler arms on the first middle-click and locks on the second.
+    """
     close_filter_panel(page)
-    # Keep only what's relevant: units + the measurement overlay.
-    set_filters(page, {"layers": ["measure"]})
-    set_view(page, 29.18, 58.71, 12)
+    # Units as backdrop + the measurement overlay + bullseyes (the bull line only
+    # draws when the bullseyes layer is on — pickReferenceBullseye gates on it).
+    set_filters(page, {"layers": ["measure", "bullseyes"]})
     page.wait_for_timeout(500)
-    # Two points framing the ruler in the image's center.
-    p1 = (650, 520)
-    p2 = (1000, 380)
-    for x, y in (p1, p2):
-        page.mouse.move(x, y)
+    info = page.evaluate(
+        """() => {
+          const map = window.__leafletMap;
+          const latTxt = document.getElementById('tlmLat').textContent;
+          const lonTxt = document.getElementById('tlmLon').textContent;
+          const player = {
+            lat: parseFloat(latTxt) * (/S/.test(latTxt) ? -1 : 1),
+            lon: parseFloat(lonTxt) * (/W/.test(lonTxt) ? -1 : 1),
+          };
+          const layers = Object.values(map._layers || {});
+          const bulls = layers
+            .filter(l => l._latlng && l._icon && l._icon.classList
+                         && l._icon.classList.contains('bullseye-icon'))
+            .map(l => ({lat: l._latlng.lat, lon: l._latlng.lng}));
+          const d2 = (a, b) => (a.lat - b.lat) ** 2 + (a.lon - b.lon) ** 2;
+          const bull = bulls.sort((x, y) => d2(x, player) - d2(y, player))[0] || null;
+          // Target south of both, midway in longitude → the two lines fork apart.
+          const target = bull
+            ? {lat: Math.min(player.lat, bull.lat) - 0.12, lon: (player.lon + bull.lon) / 2}
+            : {lat: player.lat - 0.12, lon: player.lon - 0.12};
+          const pts = bull ? [player, bull, target] : [player, target];
+          map.fitBounds(pts.map(p => [p.lat, p.lon]), {animate: false, padding: [110, 110]});
+          return {player, bull, target};
+        }"""
+    )
+    print(f"  [bra] {info}")
+    page.wait_for_timeout(1400)  # tiles settle at the new view
+    xy = page.evaluate(
+        "(t) => { const p = window.__leafletMap.latLngToContainerPoint([t.lat, t.lon]); return {x: p.x, y: p.y}; }",
+        info["target"],
+    )
+    # Dynamic ruler: first middle-click arms tracking, second locks. Two clicks
+    # at the target point = a clean frozen measurement.
+    page.mouse.move(xy["x"], xy["y"])
+    for _ in range(2):
         page.mouse.down(button="middle")
         page.mouse.up(button="middle")
-        page.wait_for_timeout(300)
+        page.wait_for_timeout(250)
+    # Park the cursor over the readout panel so no stray unit hover-tooltip shows
+    # on the map, then let the freeze fetches land (Eval elevation + declination).
+    page.mouse.move(1480, 760)
+    page.wait_for_timeout(2600)
 
 
 def shot_routes(page: Page) -> None:
