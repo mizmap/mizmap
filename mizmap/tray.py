@@ -38,7 +38,7 @@ _ICON_PATH = Path(__file__).resolve().parent / "data" / "mizmap.ico"
 
 
 def _load_icon_image():
-    """Load the multi-resolution compass-rose ICO that ships with the package.
+    """Load the multi-resolution route-trail ICO that ships with the package.
 
     Falls back to a simple programmatic glyph if the file is missing (e.g. in
     a half-bootstrapped dev checkout before `scripts/make_icon.py` ran). The

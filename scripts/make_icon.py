@@ -1,97 +1,124 @@
-"""Generate mizmap/data/mizmap.ico — a multi-resolution compass-rose icon.
+"""Generate the MizMap brand mark — a flight-plan "route trail" icon.
 
-Run once when you want to refresh the icon:
+The mark is a cased route polyline tracing an "M" (the MizMap initial) over
+five waypoint nodes, set in a navy disc with a pale steel ring. The bottom-left
+node is accent-red (the route start); the rest are white. It reads as a mission
+flight plan, mirrors how MizMap draws routes on the live map, and is distinct
+from any compass-rose / navigation-star mark.
 
-    uv run python scripts/make_icon.py
+Run when you want to refresh the icon (Pillow is a build-time-only dep):
 
-The output is committed to the repo so end users + the build don't need
-PIL installed at runtime just to load the icon. Sizes 16/32/48/256 cover
-the Windows Explorer + tray + alt-tab + Start menu use cases.
+    uv run --with pillow python scripts/make_icon.py
+
+It writes all three committed brand assets from this single source:
+
+  * mizmap/data/mizmap.ico        — app window, tray, Windows installer
+  * docs/favicon.ico              — landing-page favicon (byte copy of the .ico)
+  * docs/assets/mizmap-icon.png   — landing-page brand glyph + apple-touch-icon
+
+The outputs are committed so end users + the build don't need PIL at runtime.
+ICO sizes 16/32/48/64/128/256 cover Explorer + tray + alt-tab + Start menu;
+each is rendered natively (not downscaled from one master) so small sizes keep
+crisp strokes.
 """
 
 from __future__ import annotations
 
-import math
+import shutil
 from pathlib import Path
 
 from PIL import Image, ImageDraw
 
 
-# Canvas + colour palette. Drawn at high res; PIL downsamples to each
-# size baked into the .ico.
-CANVAS = 256
-BG = (14, 42, 71)             # deep navy
-RING = (166, 192, 224)        # pale steel
-SPOKE_MAJOR = (240, 244, 252) # near-white for cardinals
-SPOKE_MINOR = (170, 195, 225) # softer for ordinals
-NORTH = (231, 76, 60)         # warm red for the N spoke
-HUB = (240, 244, 252)
+# Colour palette — reuses MizMap's existing identity.
+BG = (14, 42, 71)         # deep navy disc
+RING = (166, 192, 224)    # pale steel ring
+CASE = (7, 22, 40)        # dark casing under the route line
+LINE = (240, 244, 252)    # near-white route line + waypoint nodes
+NODE_EDGE = (7, 22, 40)   # node outline
+START = (231, 76, 60)     # accent red — the route start node
 
+# Render this many times larger, then downsample, for clean anti-aliased edges.
+SUPERSAMPLE = 4
 
-def _spoke(draw: ImageDraw.ImageDraw, cx: float, cy: float, angle_rad: float,
-           length: float, half_width: float, fill: tuple) -> None:
-    """Draw a single tapered spoke pointing along `angle_rad` (0 = north, CW)."""
-    # Outward tip.
-    tip = (cx + length * math.sin(angle_rad), cy - length * math.cos(angle_rad))
-    # Base corners — perpendicular to the spoke direction.
-    left = (
-        cx + half_width * math.sin(angle_rad - math.pi / 2),
-        cy - half_width * math.cos(angle_rad - math.pi / 2),
-    )
-    right = (
-        cx + half_width * math.sin(angle_rad + math.pi / 2),
-        cy - half_width * math.cos(angle_rad + math.pi / 2),
-    )
-    draw.polygon([tip, left, right], fill=fill)
+# Waypoint nodes tracing an "M", normalised to the disc (x, y in [0, 1], y down).
+# First node is the route start (drawn red); the polyline is the flight plan.
+ROUTE = [
+    (0.29, 0.71),  # start  (bottom-left)
+    (0.29, 0.31),  # left peak
+    (0.50, 0.56),  # centre valley
+    (0.71, 0.31),  # right peak
+    (0.71, 0.71),  # end    (bottom-right)
+]
 
 
 def render(size: int) -> Image.Image:
-    img = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+    """Render the mark at `size`x`size` px (RGBA), supersampled for clean edges."""
+    s = size * SUPERSAMPLE
+    img = Image.new("RGBA", (s, s), (0, 0, 0, 0))
     draw = ImageDraw.Draw(img)
-    cx = cy = size / 2
 
     # Disc + ring.
-    pad = max(2, size // 32)
-    draw.ellipse((pad, pad, size - pad, size - pad), fill=BG)
-    ring_pad = pad + max(2, size // 32)
+    pad = max(2, s // 32)
+    draw.ellipse((pad, pad, s - pad, s - pad), fill=BG)
+    ring_pad = pad + max(2, s // 32)
     draw.ellipse(
-        (ring_pad, ring_pad, size - ring_pad, size - ring_pad),
+        (ring_pad, ring_pad, s - ring_pad, s - ring_pad),
         outline=RING,
-        width=max(1, size // 64),
+        width=max(1, s // 48),
     )
 
-    # Spoke geometry. Cardinals reach further than ordinals; the N spoke is
-    # accent-coloured.
-    cardinal_len = (size / 2 - ring_pad - size / 32) * 0.96
-    ordinal_len = cardinal_len * 0.55
-    cardinal_w = max(1.0, size / 28)
-    ordinal_w = max(1.0, size / 40)
+    pts = [(x * s, y * s) for (x, y) in ROUTE]
 
-    # Ordinals first, so they sit under the cardinals at the hub.
-    for angle_deg in (45, 135, 225, 315):
-        _spoke(draw, cx, cy, math.radians(angle_deg), ordinal_len, ordinal_w, SPOKE_MINOR)
+    # Cased route line: a dark halo under the bright line, as on the live map.
+    line_w = max(2 * SUPERSAMPLE, int(s * 0.052))
+    case_w = line_w + max(2 * SUPERSAMPLE, int(s * 0.045))
+    draw.line(pts, fill=CASE, width=case_w, joint="curve")
+    draw.line(pts, fill=LINE, width=line_w, joint="curve")
 
-    # Cardinals.
-    for angle_deg in (90, 180, 270):
-        _spoke(draw, cx, cy, math.radians(angle_deg), cardinal_len, cardinal_w, SPOKE_MAJOR)
-    # North gets the accent.
-    _spoke(draw, cx, cy, math.radians(0), cardinal_len, cardinal_w, NORTH)
+    # Waypoint nodes. Middles + end are white; the start is accent-red.
+    node_r = max(3 * SUPERSAMPLE, int(s * 0.060))
+    edge_w = max(1, SUPERSAMPLE)
 
-    # Hub.
-    hub_r = max(2, size // 18)
-    draw.ellipse((cx - hub_r, cy - hub_r, cx + hub_r, cy + hub_r), fill=HUB)
+    def node(center: tuple, radius: float, fill: tuple) -> None:
+        x, y = center
+        draw.ellipse(
+            (x - radius, y - radius, x + radius, y + radius),
+            fill=fill,
+            outline=NODE_EDGE,
+            width=edge_w,
+        )
 
-    return img
+    for c in pts[1:]:
+        node(c, node_r, LINE)
+    node(pts[0], node_r * 1.05, START)
+
+    return img.resize((size, size), Image.Resampling.LANCZOS)
 
 
 def main() -> None:
-    out = Path(__file__).resolve().parent.parent / "mizmap" / "data" / "mizmap.ico"
-    # Render at the largest size, then let PIL downsample for the smaller
-    # variants packed into the multi-res .ico.
-    master = render(256)
-    sizes = [(16, 16), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)]
-    master.save(out, format="ICO", sizes=sizes)
-    print(f"wrote {out} ({out.stat().st_size} bytes)")
+    root = Path(__file__).resolve().parent.parent
+    ico_path = root / "mizmap" / "data" / "mizmap.ico"
+    favicon_path = root / "docs" / "favicon.ico"
+    png_path = root / "docs" / "assets" / "mizmap-icon.png"
+
+    sizes = [16, 32, 48, 64, 128, 256]
+    images = [render(s) for s in sizes]
+    # Pack the natively-rendered per-size bitmaps into one multi-res ICO. The
+    # base image must be the largest — the ICO writer drops any requested size
+    # bigger than the base, so saving from a small frame would yield only it.
+    largest = images[-1]
+    largest.save(
+        ico_path,
+        format="ICO",
+        append_images=images[:-1],
+        sizes=[(s, s) for s in sizes],
+    )
+    shutil.copyfile(ico_path, favicon_path)
+    images[-1].save(png_path, format="PNG")
+
+    for p in (ico_path, favicon_path, png_path):
+        print(f"wrote {p} ({p.stat().st_size} bytes)")
 
 
 if __name__ == "__main__":
