@@ -2507,12 +2507,22 @@ function rebuildMeasureLayers(targetLatLng, bullData, playerUnit, bullBR, selfOu
             opacity: 0.95,
             dashArray: "10 6",
         });
-        const mid = interpolateLatLng(a, b, 0.5);
+        const bullAngle = screenAngleDeg(a, b);
+        const bullMid = interpolateLatLng(a, b, 0.5);
+        // Same split as the self line: reciprocal bearings above, distance below.
         makeMeasureLabel(
-            mid,
-            `BULL → Tgt: ${formatBR(bullBR.brg, bullBR.rng, dec)}`,
+            bullMid,
+            `${formatBearing(bullBR.brg, dec)} / ${formatBearing(bullBR.brgIn, dec)}`,
             "measure-label-bull",
-            screenAngleDeg(a, b),
+            bullAngle,
+            -12,
+        ).addTo(group);
+        makeMeasureLabel(
+            bullMid,
+            formatRange(bullBR.rng),
+            "measure-label-bull",
+            bullAngle,
+            12,
         ).addTo(group);
     }
     if (playerUnit && selfOutBR && selfInBR) {
@@ -2601,6 +2611,7 @@ function refreshMeasureReadout() {
     if (bull) {
         bullBR = {
             brg: initialBearingDeg(bull.lat, bull.lon, lat, lon),
+            brgIn: initialBearingDeg(lat, lon, bull.lat, bull.lon), // reciprocal, for the on-line label
             rng: haversineNm(bull.lat, bull.lon, lat, lon),
         };
         measureBullLabelEl.textContent = `Bull (${COAL_NAMES[bull.coalition] || "?"})`;
