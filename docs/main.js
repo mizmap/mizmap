@@ -33,7 +33,7 @@
 })();
 
 // Click any feature screenshot to view it at full resolution in a
-// lightbox. Close on overlay click, the X button, or Escape.
+// lightbox. Close on any click or Escape.
 (function () {
   "use strict";
 
@@ -50,7 +50,6 @@
   document.body.appendChild(box);
 
   var bigImg = box.querySelector("img");
-  var closeBtn = box.querySelector(".lightbox-close");
 
   function open(src, alt) {
     bigImg.src = src;
@@ -71,9 +70,7 @@
     });
   });
 
-  box.addEventListener("click", function (ev) {
-    if (ev.target === box || ev.target === closeBtn) close();
-  });
+  box.addEventListener("click", close);
   document.addEventListener("keydown", function (ev) {
     if (ev.key === "Escape" && box.classList.contains("open")) close();
   });
