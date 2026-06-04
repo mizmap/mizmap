@@ -1,7 +1,7 @@
 [project]
 name = "mizmap"
-version = "0.1.0"
-description = "MizMap — live moving-map viewer for DCS World single-player missions."
+dynamic = ["version"]
+description = "MizMap — live map viewer for DCS World single-player missions."
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "GPL-3.0-or-later" }
@@ -40,6 +40,9 @@ mizmap = "mizmap.cli:app"
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[tool.hatch.version]
+path = "mizmap/__init__.py"
 
 [tool.hatch.build.targets.wheel]
 packages = ["mizmap"]

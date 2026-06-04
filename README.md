@@ -1,11 +1,13 @@
 # MizMap
 
-A live, moving-map viewer for **single-player** DCS World missions. Open a browser on your DCS PC — or on a tablet/phone on the same Wi-Fi — and watch your mission unfold on a real-world topographic map with full visibility into every unit you choose to see.
+A live map viewer for **single-player** DCS World missions. Open a browser on your DCS PC — or on a tablet/phone on the same network — and watch your mission unfold on a real-world topographic map with full visibility into every unit you choose to see.
 
-Inspired by [DCS MovingMap](https://movingmap.bergison.com), with one key difference: **you choose what's visible** — MizMap doesn't enforce the mission's in-game F10 view options.
+MizMap is built for free flight, self-training, and mission designers testing their own work.
 
-> **Scope:** single-player only. Multiplayer is explicitly out of scope.
-> **Status:** pre-1.0 (0.1.0). Usable from source or via the Windows installer; expect rough edges and breaking changes.
+DCS's in-game F10 map enforces whatever visibility options the mission designer baked in. MizMap doesn't. It reads the mission state directly from DCS-gRPC and renders it on a real-world map - topographic, street, or satellite - and you toggle the layers: coalitions, unit types, threat rings, flight plans, airfields, navaids, F10 marks, trails - all client-side, under your control.
+
+*Not recommended* for single player campaigns that deliberately limit the map - you'd be working around the designer's intent. Also, it's not a multiplayer tool: ethically off-limits, and technically blocked by the security flags any sane server has set. 
+
 
 ## Architecture
 
@@ -26,7 +28,8 @@ MizMap viewer (browser, Leaflet + MIL-STD-2525 symbology)
    on the DCS PC and/or a LAN tablet
 ```
 
-## Quickstart (development, on Mac/Linux, without DCS)
+
+## Quickstart (development)
 
 ```bash
 uv sync                          # install deps into .venv
@@ -42,6 +45,9 @@ uv run mizmap serve
 open http://localhost:8766
 ```
 
+> If on Linux/macOS, see the configuration section below on how to connect to DCS on another machine. 
+
+
 ## Quickstart (real DCS on Windows — installer)
 
 1. Install [DCS-gRPC rust-server](https://github.com/DCS-gRPC/rust-server) into DCS and enable `evalEnabled = true` in `Saved Games/DCS/Config/dcs-grpc.lua`.
@@ -51,7 +57,8 @@ open http://localhost:8766
 
 Per-user config lives at `%APPDATA%\MizMap\config.toml` (commented template written on first run — uncomment lines to override defaults). Tile cache at `%LOCALAPPDATA%\MizMap\tiles\` survives reinstalls.
 
-> The installer is unsigned, so SmartScreen will show an "unknown publisher" warning the first time. Click *More info* → *Run anyway*.
+> The installer is unsigned, so SmartScreen will show an "unknown publisher" warning the first time. Click *More info* → *Run anyway*. If this sounds unreasonable to you, see below for running from source.
+
 
 ## Quickstart (real DCS on Windows — from source)
 
@@ -59,6 +66,7 @@ Per-user config lives at `%APPDATA%\MizMap\config.toml` (commented template writ
 2. Start DCS and load a single-player mission.
 3. Run `mizmap serve` on the DCS PC (or another machine on the LAN — see `MIZMAP_GRPC_HOST`).
 4. Open `http://<dcs-pc-ip>:8766` in any browser on the LAN.
+
 
 ## Configuration
 
@@ -76,14 +84,6 @@ Settings resolve from three places, highest priority first: environment variable
 
 The viewer offers three basemaps — **Topographic**, **Streets**, and **Satellite** — selectable from the controls panel (the choice rides the URL hash). Tiles are served by a local proxy at `/tiles/{source}/{z}/{x}/{y}` and cached per-source to disk on first fetch — so dev iteration doesn't burn the upstream rate limit, LAN viewers share one warm cache, and the map keeps working offline once warm. Wipe all sources with `mizmap clear-cache`.
 
-## Development
-
-See [`.journal/`](.journal/) for development notes per session (git-ignored —
-local to the maintainer's machine). Longer-lived engineering notes that travel
-with the repo live in [`notes/`](notes/) — e.g.
-[runway overlay alignment](notes/runway-overlay-alignment.md) (why the
-DCS-sourced runway overlay can look angled vs. the base map, and why it isn't a
-bug).
 
 ## Building the Windows installer
 
@@ -95,12 +95,12 @@ scripts\build_windows.ps1 -Clean
 
 Two stages — PyInstaller produces `packaging\dist\mizmap\` (one-folder bundle, ~65 MB), then Inno Setup wraps it as `packaging\dist\mizmap-setup-<version>.exe` (~26 MB compressed). See [packaging/mizmap.spec](packaging/mizmap.spec) and [packaging/mizmap.iss](packaging/mizmap.iss).
 
+
 ## License
 
 MizMap is free software, licensed under the **GNU General Public License v3.0 or later** (GPL-3.0-or-later). See [LICENSE](LICENSE) for the full text.
 
 Copyright (C) 2026 the MizMap authors.
 
-- The vendored DCS-gRPC protobuf definitions (`proto/`, `mizmap/proto_gen/`) are derived from [DCS-gRPC/rust-server](https://github.com/DCS-gRPC/rust-server) and remain under **AGPL-3.0** ([LICENSES/AGPL-3.0.txt](LICENSES/AGPL-3.0.txt)); GPL-3.0 §13 expressly permits the combination.
+- The vendored DCS-gRPC protobuf definitions (`proto/`, `mizmap/proto_gen/`) are derived from [DCS-gRPC/rust-server](https://github.com/DCS-gRPC/rust-server) and remain under **AGPL-3.0** ([LICENSES/AGPL-3.0.txt](LICENSES/AGPL-3.0.txt)).
 - Bundled third-party libraries keep their own licenses — see [THIRD_PARTY_LICENSES.txt](THIRD_PARTY_LICENSES.txt) (regenerate with `scripts/gen_third_party_licenses.py` after changing dependencies).
-- Map tiles © [OpenTopoMap](https://opentopomap.org) (CC-BY-SA); map data © [OpenStreetMap](https://www.openstreetmap.org/copyright) contributors (ODbL).

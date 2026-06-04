@@ -35,7 +35,7 @@ def _report_result(text: str, *, is_error: bool = False) -> None:
 
 app = typer.Typer(
     name="mizmap",
-    help="MizMap — live moving-map viewer for DCS World.",
+    help="MizMap — live map viewer for DCS World.",
     no_args_is_help=True,
     add_completion=False,
 )

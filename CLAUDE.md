@@ -4,7 +4,7 @@ This file briefs Claude Code sessions opened in this repo. It's read automatical
 
 ## What this is
 
-**MizMap** — a live moving-map viewer for **single-player** DCS World missions. Differentiator vs [DCS MovingMap](https://movingmap.bergison.com): the user chooses what's visible, rather than the tool enforcing the mission's in-game F10 view options.
+**MizMap** — a live map viewer for **single-player** DCS World missions.
 
 See [README.md](README.md) for architecture diagram and run instructions.
 
@@ -33,7 +33,7 @@ If you find yourself proposing to change any of these, treat it as a major decis
 Any change to message shapes must be a deliberate, user-agreed decision — not an accidental drift during a refactor.
 
 ```
-{ "type": "hello", "version": "0.0.1" }
+{ "type": "hello", "version": "1.0.0" }
 { "type": "grpc_status", "connected": bool, "host": str, "error": str|null }
 { "type": "units_snapshot", "units": [<unit>, ...] }
 { "type": "unit_update", "unit": <unit> }
