@@ -1,3 +1,17 @@
+/* Chrome design tokens, the "instrument" skin: flat near-opaque panels,
+   squared corners, condensed label face, amber accent for chrome state.
+   Map semantics (coalition colors, selection yellow) deliberately stay
+   hardcoded at their point of use; they are not chrome. */
+:root {
+    --panel-bg: rgba(17, 19, 21, 0.96);
+    --panel-border: #494f56;
+    --panel-radius: 4px;
+    --control-radius: 3px;
+    --accent: #e0a93c;
+    --accent-soft: rgba(224, 169, 60, 0.6);
+    --label-font: "Bahnschrift", "Avenir Next Condensed", "Arial Narrow", sans-serif;
+}
+
 html, body {
     margin: 0;
     padding: 0;
@@ -32,11 +46,9 @@ html, body {
     /* Clear the always-visible hamburger menu button (48px tall + 8px gap). */
     margin-top: 56px;
     z-index: 1000;
-    background: rgba(20, 20, 20, 0.85);
-    backdrop-filter: blur(6px);
-    -webkit-backdrop-filter: blur(6px);
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    border-radius: 8px;
+    background: var(--panel-bg);
+    border: 1px solid var(--panel-border);
+    border-radius: var(--panel-radius);
     padding: 8px 12px 10px;
     font-size: 12px;
     line-height: 1.4;
@@ -70,7 +82,8 @@ html, body {
 .filter-section-label {
     color: #9aa0a6;
     text-transform: uppercase;
-    letter-spacing: 0.06em;
+    font-family: var(--label-font);
+    letter-spacing: 0.1em;
     font-size: 10px;
 }
 
@@ -144,8 +157,8 @@ html, body {
     justify-content: flex-start;
     gap: 3px;
     padding: 6px 3px;
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    border-radius: 6px;
+    border: 1px solid var(--panel-border);
+    border-radius: var(--control-radius);
     background: rgba(255, 255, 255, 0.03);
     cursor: pointer;
     text-align: center;
@@ -224,8 +237,8 @@ html, body {
 .filter-select {
     background: rgba(0, 0, 0, 0.4);
     color: #d6d6d6;
-    border: 1px solid rgba(255, 255, 255, 0.15);
-    border-radius: 4px;
+    border: 1px solid var(--panel-border);
+    border-radius: var(--control-radius);
     padding: 1px 4px;
     font-size: 11px;
     cursor: pointer;
@@ -248,11 +261,9 @@ html, body {
     left: 50%;
     transform: translateX(-50%);
     z-index: 1000;
-    background: rgba(20, 20, 20, 0.85);
-    backdrop-filter: blur(6px);
-    -webkit-backdrop-filter: blur(6px);
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    border-radius: 8px;
+    background: var(--panel-bg);
+    border: 1px solid var(--panel-border);
+    border-radius: var(--panel-radius);
     padding: 6px 14px 8px;
     /* Fixed table layout: a name header row, then two rows of field cells in
        a 4-column grid (MGRS spans two columns so its long value fits). A rigid
@@ -286,7 +297,8 @@ html, body {
 .tlm-label {
     color: #9aa0a6;
     text-transform: uppercase;
-    letter-spacing: 0.08em;
+    font-family: var(--label-font);
+    letter-spacing: 0.1em;
     font-size: 10px;
 }
 
@@ -312,7 +324,7 @@ html, body {
     font-weight: 600;
     font-size: 12px;
     padding: 2px 6px;
-    border-radius: 4px;
+    border-radius: var(--control-radius);
     min-width: 0;
     align-self: center;
 }
@@ -335,11 +347,9 @@ html, body {
     left: 50%;
     transform: translateX(-50%);
     z-index: 1000;
-    background: rgba(20, 20, 20, 0.85);
-    backdrop-filter: blur(6px);
-    -webkit-backdrop-filter: blur(6px);
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    border-radius: 8px;
+    background: var(--panel-bg);
+    border: 1px solid var(--panel-border);
+    border-radius: var(--panel-radius);
     padding: 5px 12px;
     display: flex;
     flex-direction: column;
@@ -364,7 +374,8 @@ html, body {
 .cursor-readout-label {
     color: #9aa0a6;
     text-transform: uppercase;
-    letter-spacing: 0.08em;
+    font-family: var(--label-font);
+    letter-spacing: 0.1em;
     font-size: 10px;
     min-width: 30px;
 }
@@ -406,11 +417,9 @@ html, body {
     bottom: 12px;
     right: 12px;
     z-index: 1000;
-    background: rgba(20, 20, 20, 0.85);
-    backdrop-filter: blur(6px);
-    -webkit-backdrop-filter: blur(6px);
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    border-radius: 8px;
+    background: var(--panel-bg);
+    border: 1px solid var(--panel-border);
+    border-radius: var(--panel-radius);
     padding: 8px 12px 10px;
     font-size: 12px;
     line-height: 1.4;
@@ -434,7 +443,8 @@ html, body {
 .measure-title {
     color: #9aa0a6;
     text-transform: uppercase;
-    letter-spacing: 0.08em;
+    font-family: var(--label-font);
+    letter-spacing: 0.1em;
     font-size: 10px;
 }
 
@@ -448,8 +458,8 @@ html, body {
 
 .measure-clear {
     background: transparent;
-    border: 1px solid rgba(255, 255, 255, 0.18);
-    border-radius: 4px;
+    border: 1px solid var(--panel-border);
+    border-radius: var(--control-radius);
     color: #d6d6d6;
     width: 20px;
     height: 20px;
@@ -492,8 +502,8 @@ html, body {
 
 .measure-copy {
     background: transparent;
-    border: 1px solid rgba(255, 255, 255, 0.18);
-    border-radius: 4px;
+    border: 1px solid var(--panel-border);
+    border-radius: var(--control-radius);
     color: #d6d6d6;
     width: 22px;
     height: 22px;
@@ -531,9 +541,9 @@ html, body {
 .measure-label-pill {
     display: inline-block;
     transform-origin: center;
-    background: rgba(20, 20, 20, 0.85);
-    border: 1px solid rgba(255, 255, 255, 0.18);
-    border-radius: 3px;
+    background: var(--panel-bg);
+    border: 1px solid var(--panel-border);
+    border-radius: var(--control-radius);
     color: #d6d6d6;
     padding: 2px 6px;
     font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
@@ -549,9 +559,9 @@ html, body {
 
 /* Permanent waypoint labels — one per route point, colored by coalition. */
 .waypoint-label {
-    background: rgba(20, 20, 20, 0.85);
-    border: 1px solid rgba(255, 255, 255, 0.15);
-    border-radius: 3px;
+    background: var(--panel-bg);
+    border: 1px solid var(--panel-border);
+    border-radius: var(--control-radius);
     padding: 1px 5px;
     font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
     font-size: 10px;
@@ -570,9 +580,9 @@ html, body {
 
 /* Permanent airbase name labels — match DCS's F10 airfield captions. */
 .airbase-label {
-    background: rgba(20, 20, 20, 0.85);
-    border: 1px solid rgba(255, 255, 255, 0.15);
-    border-radius: 3px;
+    background: var(--panel-bg);
+    border: 1px solid var(--panel-border);
+    border-radius: var(--control-radius);
     padding: 1px 5px;
     font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
     font-size: 10px;
@@ -590,9 +600,9 @@ html, body {
 
 /* Permanent F10-mark labels — match DCS's always-on red-tinted captions. */
 .mark-label {
-    background: rgba(20, 20, 20, 0.85);
+    background: var(--panel-bg);
     border: 1px solid rgba(255, 59, 48, 0.5);
-    border-radius: 3px;
+    border-radius: var(--control-radius);
     padding: 1px 5px;
     color: #ff8a82;
     font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
@@ -642,15 +652,13 @@ html, body {
     z-index: 1100;
     width: 48px;
     height: 48px;
-    border-radius: 50%;
-    background: rgba(20, 20, 20, 0.92);
-    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: var(--panel-radius);
+    background: var(--panel-bg);
+    border: 1px solid var(--panel-border);
     color: #d6d6d6;
     align-items: center;
     justify-content: center;
     cursor: pointer;
-    backdrop-filter: blur(6px);
-    -webkit-backdrop-filter: blur(6px);
     box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
 }
 .kb-floating:active {
@@ -770,7 +778,7 @@ html, body {
         width: 30px;
         height: 30px;
         font-size: 20px;
-        border-radius: 6px;
+        border-radius: var(--control-radius);
     }
     .nav-wp-controls { gap: 8px; }
 
@@ -860,10 +868,10 @@ html, body {
     left: 0;
     z-index: 1200;
     white-space: nowrap;
-    background: rgba(20, 20, 20, 0.95);
+    background: var(--panel-bg);
     color: #d6d6d6;
-    border: 1px solid rgba(255, 255, 255, 0.18);
-    border-radius: 4px;
+    border: 1px solid var(--panel-border);
+    border-radius: var(--control-radius);
     padding: 3px 6px;
     font-size: 10px;
     text-transform: none;
@@ -885,9 +893,9 @@ html, body {
     width: 28px;
     height: 28px;
     padding: 0;
-    border-radius: 50%;
+    border-radius: var(--control-radius);
     background: rgba(255, 255, 255, 0.06);
-    border: 1px solid rgba(255, 255, 255, 0.18);
+    border: 1px solid var(--panel-border);
     color: #d6d6d6;
     cursor: pointer;
 }
@@ -925,7 +933,7 @@ html, body {
     font-size: 10px;
     background: rgba(255, 255, 255, 0.08);
     padding: 1px 3px;
-    border-radius: 3px;
+    border-radius: var(--control-radius);
 }
 
 .filter-row-hint[hidden] {
@@ -949,9 +957,9 @@ html, body {
     width: min(440px, 100%);
     max-height: calc(100vh - 32px);
     overflow-y: auto;
-    background: rgba(24, 24, 24, 0.98);
-    border: 1px solid rgba(255, 255, 255, 0.18);
-    border-radius: 8px;
+    background: var(--panel-bg);
+    border: 1px solid var(--panel-border);
+    border-radius: var(--panel-radius);
     box-shadow: 0 8px 28px rgba(0, 0, 0, 0.6);
     color: #e6e6e6;
 }
@@ -965,7 +973,8 @@ html, body {
 .settings-title {
     font-size: 12px;
     font-weight: 700;
-    letter-spacing: 0.08em;
+    font-family: var(--label-font);
+    letter-spacing: 0.1em;
     color: #9aa0a6;
 }
 .settings-close {
@@ -984,7 +993,7 @@ html, body {
 .settings-banner {
     margin-bottom: 12px;
     padding: 8px 10px;
-    border-radius: 4px;
+    border-radius: var(--control-radius);
     background: rgba(244, 211, 94, 0.15);
     border: 1px solid rgba(244, 211, 94, 0.5);
     color: #f4d35e;
@@ -1005,8 +1014,8 @@ html, body {
 }
 .settings-input {
     background: rgba(0, 0, 0, 0.35);
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    border-radius: 4px;
+    border: 1px solid var(--panel-border);
+    border-radius: var(--control-radius);
     padding: 6px 8px;
     color: #fff;
     font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
@@ -1034,15 +1043,15 @@ html, body {
 .settings-msg-error { color: #e07c7c; }
 .settings-save {
     padding: 7px 18px;
-    background: #5b8def;
+    background: var(--accent);
     border: none;
-    border-radius: 4px;
-    color: #fff;
+    border-radius: var(--control-radius);
+    color: #1a1a1a;
     font: inherit;
     font-weight: 600;
     cursor: pointer;
 }
-.settings-save:hover { background: #6f9bf2; }
+.settings-save:hover { background: #eab655; }
 
 /* Recenter-on-own-ship button (Leaflet bottom-left control). Bumped a touch
    above the 30px Leaflet default for visibility; the touch query below grows it
@@ -1051,13 +1060,19 @@ html, body {
    The `.leaflet-bar` class (also on the container) is included only to outrank
    Leaflet's own `.leaflet-touch .leaflet-bar a` width/height — drop it and the
    button silently stays 30px on touch-capable browsers. */
+.mizmap-recenter.leaflet-bar {
+    border: 1px solid var(--panel-border);
+    border-radius: var(--panel-radius);
+}
 .mizmap-recenter.leaflet-bar .mizmap-recenter-btn {
     display: flex;
     align-items: center;
     justify-content: center;
     width: 36px;
     height: 36px;
-    color: #1b1b1b;
+    background-color: var(--panel-bg);
+    color: #d6d6d6;
+    border-radius: var(--panel-radius);
     text-decoration: none;
 }
 .mizmap-recenter.leaflet-bar .mizmap-recenter-btn svg {
@@ -1065,17 +1080,17 @@ html, body {
     height: 22px;
 }
 .mizmap-recenter.leaflet-bar .mizmap-recenter-btn:hover {
-    background-color: #f4f4f4;
+    background-color: #2a2e33;
 }
-/* Active state: stays highlighted (coalition-blue accent, matching the "on"
+/* Active state: stays highlighted (amber chrome accent, matching the "on"
    toggles) while the map is following a unit, so the follow toggle's state
    reads at a glance. */
 .mizmap-recenter.leaflet-bar .mizmap-recenter-btn.is-following {
-    background-color: #5b8def;
-    color: #fff;
+    background-color: var(--accent);
+    color: #1a1a1a;
 }
 .mizmap-recenter.leaflet-bar .mizmap-recenter-btn.is-following:hover {
-    background-color: #6f9bf2;
+    background-color: #eab655;
 }
 
 /* Navigation-mode floating panel — center-right, vertical layout. The toggle
@@ -1090,11 +1105,9 @@ html, body {
     flex-direction: column;
     align-items: stretch;
     gap: 8px;
-    background: rgba(20, 20, 20, 0.85);
-    backdrop-filter: blur(6px);
-    -webkit-backdrop-filter: blur(6px);
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    border-radius: 10px;
+    background: var(--panel-bg);
+    border: 1px solid var(--panel-border);
+    border-radius: var(--panel-radius);
     padding: 10px 14px 11px;
     font-size: 13px;
     line-height: 1.25;
@@ -1134,7 +1147,8 @@ html, body {
 .nav-label {
     color: #9aa0a6;
     text-transform: uppercase;
-    letter-spacing: 0.06em;
+    font-family: var(--label-font);
+    letter-spacing: 0.1em;
     font-size: 11px;
 }
 
@@ -1161,8 +1175,8 @@ html, body {
 .nav-wp-arrow {
     appearance: none;
     background: transparent;
-    border: 1px solid rgba(255, 255, 255, 0.22);
-    border-radius: 5px;
+    border: 1px solid var(--panel-border);
+    border-radius: var(--control-radius);
     color: #d6d6d6;
     width: 26px;
     height: 26px;
@@ -1182,7 +1196,7 @@ html, body {
 }
 
 .nav-wp-arrow:active {
-    background: rgba(91, 141, 239, 0.25);
+    background: rgba(224, 169, 60, 0.25);
 }
 
 /* iOS-style sliding switch — shared between the NAV-mode toggle in the
@@ -1201,7 +1215,8 @@ html, body {
 .nav-switch-label {
     color: #d6d6d6;
     text-transform: uppercase;
-    letter-spacing: 0.08em;
+    font-family: var(--label-font);
+    letter-spacing: 0.1em;
     font-size: 13px;
     font-weight: 600;
 }
@@ -1221,8 +1236,8 @@ html, body {
     width: 36px;
     height: 20px;
     background: #3a3a3a;
-    border: 1px solid rgba(255, 255, 255, 0.18);
-    border-radius: 999px;
+    border: 1px solid var(--panel-border);
+    border-radius: var(--control-radius);
     transition: background-color 160ms ease, border-color 160ms ease;
 }
 
@@ -1237,14 +1252,14 @@ html, body {
     width: 16px;
     height: 16px;
     background: #f4f4f4;
-    border-radius: 50%;
+    border-radius: var(--control-radius);
     box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
     transition: transform 160ms ease, background-color 160ms ease;
 }
 
 input:checked + .mizmap-switch-track {
-    background: #5b8def; /* coalition-blue accent — matches BLUE units / routes */
-    border-color: rgba(91, 141, 239, 0.6);
+    background: var(--accent); /* amber: chrome state, kept distinct from coalition blue on the map */
+    border-color: var(--accent-soft);
 }
 
 input:checked + .mizmap-switch-track .mizmap-switch-thumb {
@@ -1252,7 +1267,7 @@ input:checked + .mizmap-switch-track .mizmap-switch-thumb {
 }
 
 input:focus-visible + .mizmap-switch-track {
-    outline: 2px solid rgba(91, 141, 239, 0.6);
+    outline: 2px solid var(--accent-soft);
     outline-offset: 2px;
 }
 
