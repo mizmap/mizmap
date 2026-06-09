@@ -84,6 +84,11 @@ const TRAIL_WEIGHT = 3;
 const TRAIL_OPACITY_NEWEST = 0.95;
 const TRAIL_OPACITY_OLDEST = 0.30;
 const TRAIL_LS_KEY = "mizmap.trailLengthSec";
+// Route display mode: "focus" (own-ship + selected unit's group only, the
+// default — busy missions drown the map in polylines) or "all".
+const ROUTES_MODE_DEFAULT = "focus";
+const ROUTES_MODES = ["focus", "all"];
+const ROUTES_MODE_LS_KEY = "mizmap.routesMode";
 // Collapsed/expanded state of the filter-panel disclosure sections, keyed by
 // the section's data-section value. HTML sets the smart defaults (Basemap +
 // Fog of war collapsed); a saved entry overrides per section.
@@ -218,6 +223,9 @@ const FILTERS = {
     category: { 1: true, 2: true, 3: true, 4: true },
     layers: { routes: true, bullseyes: true, airbases: true, navaids: true, marks: true, measure: true, threats: true, vectors: true, trails: true },
     trailLengthSec: TRAIL_LENGTH_DEFAULT_SEC,
+    // Lives outside `layers` (like trailLengthSec) so the all-layers-on →
+    // empty-hash invariant is untouched. "focus" = own-ship + selected only.
+    routesMode: ROUTES_MODE_DEFAULT,
     // Fog lens is its own slice (default off) rather than a `layers` flag so it
     // stays out of the all-layers-on→empty-hash invariant. viewpoint: "auto"
     // (own ship) | "1"|"2"|"3" (neutral/red/blue). memorySec: ghost window.
@@ -229,6 +237,8 @@ const N_LAYER_FLAGS = Object.keys(HASH_LAYER).length;
 // whether to fall back to localStorage (hash wins; localStorage is the
 // remembered preference for hash-less loads).
 let trailLengthSetByHash = false;
+// Same hash-wins dance for `routes=` (route display mode).
+let routesModeSetByHash = false;
 // Map view (center + zoom). Populated by decodeHash on load and used as the
 // initial view by buildMap; thereafter re-emitted on every Leaflet `moveend`.
 let pendingView = null;
@@ -274,7 +284,20 @@ function shouldShow(u) {
 
 function shouldShowRoute(r) {
     // Routes track the coalition filter; layer toggle is the master switch.
-    return FILTERS.layers.routes === true && FILTERS.coalition[r.coalition] === true;
+    if (FILTERS.layers.routes !== true) return false;
+    if (FILTERS.coalition[r.coalition] !== true) return false;
+    if (FILTERS.routesMode === "all") return true;
+    // "focus" (default): only the own-ship group's route and the selected
+    // unit's group route survive — full route clutter on busy missions is
+    // opt-in. Routes are group-level, so selecting any unit of a group
+    // shows that group's plan. No own-ship and no selection → no routes.
+    const player = findPlayerUnit();
+    if (player && r.group_id === player.group.id) return true;
+    if (selectedUnitId !== null) {
+        const sel = unitsById.get(selectedUnitId);
+        if (sel && r.group_id === sel.data.group.id) return true;
+    }
+    return false;
 }
 
 function shouldShowBullseye(b) {
@@ -608,6 +631,9 @@ function encodeHash() {
     if (FILTERS.trailLengthSec !== TRAIL_LENGTH_DEFAULT_SEC) {
         parts.push(`trail=${FILTERS.trailLengthSec}`);
     }
+    if (FILTERS.routesMode !== ROUTES_MODE_DEFAULT) {
+        parts.push(`routes=${FILTERS.routesMode}`);
+    }
     if (FILTERS.fog.on) {
         parts.push(`fog=${FILTERS.fog.viewpoint}`);
         if (FILTERS.fog.memorySec !== FOG_MEMORY_DEFAULT_SEC) {
@@ -661,6 +687,11 @@ function decodeHash() {
             trailLengthSetByHash = true;
         }
     }
+    const routesStr = params.get("routes");
+    if (routesStr !== null && ROUTES_MODES.includes(routesStr)) {
+        FILTERS.routesMode = routesStr;
+        routesModeSetByHash = true;
+    }
     const fogStr = params.get("fog");
     if (fogStr !== null) {
         FILTERS.fog.on = true;
@@ -701,6 +732,24 @@ function readTrailLengthFromStorage() {
     return null;
 }
 
+function readRoutesModeFromStorage() {
+    try {
+        const v = localStorage.getItem(ROUTES_MODE_LS_KEY);
+        if (ROUTES_MODES.includes(v)) return v;
+    } catch {
+        // Private-mode browsers can throw on access. Treat as "no preference."
+    }
+    return null;
+}
+
+function writeRoutesModeToStorage(v) {
+    try {
+        localStorage.setItem(ROUTES_MODE_LS_KEY, v);
+    } catch {
+        // localStorage may be unavailable (private mode, quota). Best-effort.
+    }
+}
+
 function writeTrailLengthToStorage(v) {
     try {
         localStorage.setItem(TRAIL_LS_KEY, String(v));
@@ -724,6 +773,13 @@ function syncCheckboxesFromFilters() {
     }
     const subRow = document.getElementById("trailLengthRow");
     if (subRow) subRow.classList.toggle("filter-row-disabled", !FILTERS.layers.trails);
+    const routesSel = document.getElementById("routesModeSel");
+    if (routesSel) {
+        routesSel.value = FILTERS.routesMode;
+        routesSel.disabled = !FILTERS.layers.routes;
+    }
+    const routesSubRow = document.getElementById("routesModeRow");
+    if (routesSubRow) routesSubRow.classList.toggle("filter-row-disabled", !FILTERS.layers.routes);
 }
 
 function wireFilterCheckboxes() {
@@ -752,6 +808,23 @@ function wireFilterCheckboxes() {
                 const subRow = document.getElementById("trailLengthRow");
                 if (subRow) subRow.classList.toggle("filter-row-disabled", !cb.checked);
             }
+            if (kind === "layers" && val === "routes") {
+                const sel = document.getElementById("routesModeSel");
+                if (sel) sel.disabled = !cb.checked;
+                const subRow = document.getElementById("routesModeRow");
+                if (subRow) subRow.classList.toggle("filter-row-disabled", !cb.checked);
+            }
+        });
+    }
+    const routesModeSel = document.getElementById("routesModeSel");
+    if (routesModeSel) {
+        routesModeSel.addEventListener("change", () => {
+            const v = routesModeSel.value;
+            if (!ROUTES_MODES.includes(v)) return;
+            FILTERS.routesMode = v;
+            writeRoutesModeToStorage(v);
+            encodeHash();
+            applyRouteVisibilityAll();
         });
     }
     const trailLengthSel = document.getElementById("trailLengthSel");
@@ -1435,6 +1508,10 @@ function removeUnit(id) {
     if (selectedUnitId === id) {
         selectedUnitId = null;
         refreshTelemetry();
+        // The selection pinned its group's route in focus mode; unpin. (The
+        // own-ship case is covered by the player-fingerprint hook callers
+        // run after removeUnit.)
+        if (FILTERS.routesMode === "focus") applyRouteVisibilityAll();
     }
 }
 
@@ -1723,7 +1800,11 @@ function applySnapshot(units) {
     // own-ship with nothing selected.
     setFollow(null);
     for (const u of units) upsertUnit(u);
-    refreshMarkVisibilityIfPlayerChanged();
+    refreshVisibilityIfPlayerChanged();
+    // The fingerprint hook above only fires on a player change, but the
+    // forced deselect needs focus-mode routes re-evaluated regardless. Must
+    // run after the upserts so shouldShowRoute sees the new player/units.
+    if (FILTERS.routesMode === "focus") applyRouteVisibilityAll();
     maybeAutoCenterOnOwnShip();
     updateRecenterControlVisibility();
 }
@@ -2297,16 +2378,18 @@ function applyMarkVisibilityAll() {
     for (const entry of marksById.values()) applyMarkVisibility(entry);
 }
 
-// Mark visibility is keyed by the player's (coalition, group_id). Re-evaluate
-// only when that pair changes — calling applyMarkVisibilityAll on every
-// unit_update is wasteful since players rarely swap coalitions or slots.
-let lastPlayerMarkFingerprint = "";
-function refreshMarkVisibilityIfPlayerChanged() {
+// Mark visibility is keyed by the player's (coalition, group_id), and
+// focus-mode route visibility by the player's group. Re-evaluate both only
+// when that pair changes — calling the apply-alls on every unit_update is
+// wasteful since players rarely swap coalitions or slots.
+let lastPlayerVisFingerprint = "";
+function refreshVisibilityIfPlayerChanged() {
     const p = findPlayerUnit();
     const fp = p ? `${p.coalition}/${p.group.id}` : "";
-    if (fp === lastPlayerMarkFingerprint) return;
-    lastPlayerMarkFingerprint = fp;
+    if (fp === lastPlayerVisFingerprint) return;
+    lastPlayerVisFingerprint = fp;
     applyMarkVisibilityAll();
+    applyRouteVisibilityAll();
 }
 
 function upsertMark(m) {
@@ -2753,6 +2836,8 @@ function selectUnit(id) {
     refreshUnitIcon(entry); // key includes selection → rebuilds (fog-aware)
     refreshTelemetry();
     updateRecenterControlVisibility();
+    // Focus mode pins the selected group's route to the map.
+    if (FILTERS.routesMode === "focus") applyRouteVisibilityAll();
 }
 
 function deselectUnit() {
@@ -2766,6 +2851,7 @@ function deselectUnit() {
     }
     refreshTelemetry();
     updateRecenterControlVisibility();
+    if (FILTERS.routesMode === "focus") applyRouteVisibilityAll();
 }
 
 function handleUnitClick(id) {
@@ -2979,7 +3065,7 @@ function connectWebSocket() {
                 case "unit_update":
                     upsertUnit(msg.unit);
                     refreshTelemetry();
-                    refreshMarkVisibilityIfPlayerChanged();
+                    refreshVisibilityIfPlayerChanged();
                     maybeAutoCenterOnOwnShip();
                     updateRecenterControlVisibility();
                     // Nav panel data (WP/BRG/DIST/ETA) tracks the own-ship every
@@ -2997,7 +3083,7 @@ function connectWebSocket() {
                 case "unit_gone":
                     removeUnit(msg.id);
                     refreshTelemetry();
-                    refreshMarkVisibilityIfPlayerChanged();
+                    refreshVisibilityIfPlayerChanged();
                     updateRecenterControlVisibility();
                     break;
                 case "mission_routes_snapshot":
@@ -3047,6 +3133,11 @@ function connectWebSocket() {
         if (stored !== null) FILTERS.trailLengthSec = stored;
     }
     writeTrailLengthToStorage(FILTERS.trailLengthSec);
+    if (!routesModeSetByHash) {
+        const storedMode = readRoutesModeFromStorage();
+        if (storedMode !== null) FILTERS.routesMode = storedMode;
+    }
+    writeRoutesModeToStorage(FILTERS.routesMode);
     initNavPanelRefs();
     navModeOn = readNavModeFromStorage();
     if (navEls.data) navEls.data.hidden = !navModeOn;

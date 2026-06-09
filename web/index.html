@@ -114,6 +114,13 @@
             </button>
             <div class="filter-section-body" id="sec-layers">
                 <label class="filter-row"><span class="filter-name">Routes</span><input type="checkbox" data-filter="layers" data-value="routes" checked /><span class="mizmap-switch-track"><span class="mizmap-switch-thumb"></span></span></label>
+                <div class="filter-row filter-row-select" id="routesModeRow" title="Which routes to draw: only the own-ship's and the selected unit's, or every group's">
+                    <label for="routesModeSel" class="filter-sublabel">Show</label>
+                    <select id="routesModeSel" class="filter-select">
+                        <option value="focus" selected>Own + selected</option>
+                        <option value="all">All</option>
+                    </select>
+                </div>
                 <label class="filter-row"><span class="filter-name">Bullseyes</span><input type="checkbox" data-filter="layers" data-value="bullseyes" checked /><span class="mizmap-switch-track"><span class="mizmap-switch-thumb"></span></span></label>
                 <label class="filter-row"><span class="filter-name">Airbases</span><input type="checkbox" data-filter="layers" data-value="airbases" checked /><span class="mizmap-switch-track"><span class="mizmap-switch-thumb"></span></span></label>
                 <label class="filter-row"><span class="filter-name">Navaids</span><input type="checkbox" data-filter="layers" data-value="navaids" checked /><span class="mizmap-switch-track"><span class="mizmap-switch-thumb"></span></span></label>
