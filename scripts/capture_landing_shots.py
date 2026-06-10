@@ -14,9 +14,13 @@ via MIZMAP_GRPC_HOST), with `mizmap serve` running on http://localhost:8766. The
 committed shots were all captured from ONE specific mission: "SCUD Alley" (A-10C
 II, PersianGulf map). The per-shot fixed views are tuned to that mission's
 geography (own-ship ~29.18,58.71, the Bam/Kerman area), so they reproduce against
-it. Eval must be enabled (routes/elevation). Exceptions: `trails.png` needs a
-MOVING mission (no `trails` shot here — a paused mission shows none), and
-`airfields.png` came from a separate Afghanistan mission.
+it. Eval must be enabled (routes/elevation).
+
+Two shots need the dev mock instead of the live box, because the live mission
+can't reproduce them deterministically: `fog` (the mock serves a fixed degraded/
+ghost detection picture) and `trails` (needs MOVING units tracing a known
+racetrack — a live still/paused mission shows none). Point `mizmap serve` at the
+mock for those two. `airfields` is the live box panned to Bandar Abbas (topo).
 """
 
 from __future__ import annotations
@@ -200,6 +204,48 @@ def shot_symbols(page: Page) -> None:
             {"lat": info["lat"], "lon": info["lon"]},
         )
         page.wait_for_timeout(1500)
+        # Nav off (defensive — a prior shot may have left it on).
+        page.evaluate("() => { const t = document.getElementById('navToggle'); if (t && t.checked) t.click(); }")
+        # Illustrate hover + click-to-pin: select one unit via the real path
+        # (pale-yellow squared sticky tooltip + white-filled selected glyph +
+        # HUD redirect) and pin a second unit's tooltip directly — selection
+        # only allows one sticky at a time.
+        pinned = page.evaluate(
+            """() => {
+              const map = window.__leafletMap;
+              const b = map.getBounds();
+              const layers = Object.values(map._layers || {});
+              const units = layers.filter(l => l._latlng && l._icon && l._icon.classList
+                && l._icon.classList.contains('milsymbol') && b.contains(l._latlng));
+              if (units.length < 2) return {ok: false, n: units.length};
+              const cp = (l) => map.latLngToContainerPoint(l._latlng);
+              const center = map.getSize().divideBy(2);
+              units.sort((a, z) => cp(a).distanceTo(center) - cp(z).distanceTo(center));
+              const u1 = units[0];
+              // Second tooltip: nearest neighbour 150-460px from u1 so the two
+              // labels stay central yet don't overlap; fall back to next-nearest.
+              let u2 = null, best = 1e9;
+              for (const u of units.slice(1)) {
+                const d = cp(u).distanceTo(cp(u1));
+                if (d >= 150 && d <= 460 && d < best) { best = d; u2 = u; }
+              }
+              if (!u2) u2 = units[1];
+              u1.fire('click');  // real selection path: sticky + select + HUD
+              const pinSticky = (m) => {       // replicate setStickyTooltip()
+                const t = m.getTooltip();
+                if (!t || t.options.permanent) return;
+                const content = t.getContent(), direction = t.options.direction, offset = t.options.offset;
+                m.unbindTooltip();
+                m.bindTooltip(content, {direction, offset, permanent: true});
+                const el = m.getTooltip() && m.getTooltip()._container;
+                if (el) el.classList.add('mizmap-tooltip-sticky');
+              };
+              pinSticky(u2);
+              return {ok: true, n: units.length, sep: Math.round(best === 1e9 ? -1 : best)};
+            }"""
+        )
+        print(f"  [symbols] pinned: {pinned}")
+        page.wait_for_timeout(900)
 
 
 def shot_hud(page: Page) -> None:
@@ -423,9 +469,21 @@ def shot_fog(page: Page) -> None:
           const vp = document.getElementById('fogViewpointSel');
           if (vp) { vp.value = '2'; vp.dispatchEvent(new Event('change', {bubbles: true})); }
           const panel = document.getElementById('filters');
-          const fogLabel = [...document.querySelectorAll('#filters .filter-section-label')]
-            .find(el => /Fog of war/i.test(el.textContent));
-          if (panel && fogLabel) panel.scrollTop = Math.max(0, fogLabel.offsetTop - 8);
+          const setCollapsed = (sec, val) => {
+            const el = panel && panel.querySelector(`.filter-section[data-section="${sec}"]`);
+            if (!el) return;
+            el.classList.toggle('collapsed', val);
+            const hdr = el.querySelector('.filter-section-header');
+            if (hdr) hdr.setAttribute('aria-expanded', String(!val));
+          };
+          // Foreground the fog controls: keep coalition (viewpoint context) and
+          // the fog section expanded, collapse the bulky ones so Enable +
+          // "View as: Red" are visible without scrolling.
+          setCollapsed('category', true);
+          setCollapsed('layers', true);
+          setCollapsed('basemap', true);
+          setCollapsed('fog', false);
+          if (panel) panel.scrollTop = 0;
         }"""
     )
     page.wait_for_timeout(800)
@@ -446,8 +504,13 @@ def shot_fog(page: Page) -> None:
                 && l._latlng && typeof l.getRadius === 'function');
               const units = layers.filter(l => l._latlng && l._icon && l._icon.classList
                 && l._icon.classList.contains('milsymbol'));
-              if (ring) map.setView(ring._latlng, 13, {animate: false});
-              else if (units.length >= 1) map.setView(units[0]._latlng, 13, {animate: false});
+              // The mock's fog jets orbit ~40 km offshore (open Black Sea), so
+              // centring tight on the contact gives an empty-water frame. Zoom
+              // out + nudge north to pull the Sochi/Adler coastline into view
+              // for terrain context (unit glyphs are fixed-size, only the ring
+              // scales down).
+              const c = ring ? ring._latlng : (units.length >= 1 ? units[0]._latlng : null);
+              if (c) map.setView([c.lat + 0.17, c.lng + 0.05], 10, {animate: false});
               return !!layers.find(l => l._icon && l._icon.classList
                 && l._icon.classList.contains('fog-ghost'));
             }"""
@@ -459,6 +522,110 @@ def shot_fog(page: Page) -> None:
         page.wait_for_timeout(1000)
     print(f"  [fog] fresh ghost framed: {framed}")
     page.wait_for_timeout(900)  # let tiles settle in the final frame
+
+
+def shot_airfields(page: Page) -> None:
+    """Bandar Abbas Intl on the topo (default) basemap: airfield installation
+    symbol + runway overlay + cyan navaid glyphs, with the airfield's runway
+    tooltip and the DND VOR/DME navaid tooltip both open (dark hover style, to
+    match the published composition). Static theatre data, so it reproduces
+    against any PersianGulf mission regardless of own-ship position.
+
+    Airfields track the coalition chips (shouldShowAirbase) but not the category
+    chips, so we leave coalitions on and clear categories: the field + navaids
+    draw, units don't clutter the frame.
+    """
+    close_filter_panel(page)
+    # Nav mode persists in localStorage, so a prior `nav` shot in the same run
+    # would leave the nav panel showing here. Force it off for a clean field shot.
+    page.evaluate("() => { const t = document.getElementById('navToggle'); if (t && t.checked) t.click(); }")
+    # Hide the own-ship telemetry HUD — this shot is about the airfield/navaids,
+    # and the published composition has no HUD strip.
+    page.evaluate("() => { const t = document.getElementById('telemetry'); if (t) t.style.display = 'none'; }")
+    set_filters(page, {"category": [], "layers": ["airbases", "navaids"]})
+    page.wait_for_timeout(600)
+    info = page.evaluate(
+        """() => {
+          const map = window.__leafletMap;
+          const layers = Object.values(map._layers || {});
+          const tip = (l) => {
+            const t = l.getTooltip && l.getTooltip();
+            return t ? String(t.getContent() || '') : '';
+          };
+          const field  = layers.find(l => l._latlng && /Bandar Abbas/i.test(tip(l)));
+          const navaid = layers.find(l => l._latlng && l.options
+            && l.options.pane === 'dcmNavaidsPane'
+            && /Bandar/i.test(tip(l)) && tip(l).includes('VOR/DME'));
+          const ll = (l) => l ? {lat: l._latlng.lat, lon: l._latlng.lng} : null;
+          // Center between the two so both fit with room above for the tooltips.
+          const fll = ll(field), nll = ll(navaid);
+          if (fll) {
+            const c = nll
+              ? {lat: (fll.lat + nll.lat) / 2, lon: (fll.lon + nll.lon) / 2}
+              : fll;
+            map.setView([c.lat, c.lon], 13, {animate: false});
+          }
+          return {fll, nll};
+        }"""
+    )
+    print(f"  [airfields] {info}")
+    page.wait_for_timeout(1500)  # tiles settle at the framed view
+    # Open both tooltips programmatically (no mouseout fires, so they persist;
+    # Leaflet keeps tooltips on different markers open together).
+    page.evaluate(
+        """() => {
+          const layers = Object.values(window.__leafletMap._layers || {});
+          const tip = (l) => {
+            const t = l.getTooltip && l.getTooltip();
+            return t ? String(t.getContent() || '') : '';
+          };
+          const field  = layers.find(l => l._latlng && /Bandar Abbas/i.test(tip(l)));
+          const navaid = layers.find(l => l._latlng && l.options
+            && l.options.pane === 'dcmNavaidsPane'
+            && /Bandar/i.test(tip(l)) && tip(l).includes('VOR/DME'));
+          if (field)  field.openTooltip();
+          if (navaid) navaid.openTooltip();
+        }"""
+    )
+    page.wait_for_timeout(700)
+
+
+def shot_trails(page: Page) -> None:
+    """Two mock Hornets in a racetrack orbit, each with a direction-vector stub
+    and a fading motion trail tracing the oval. Needs the dev mock (moving units;
+    a live still/paused mission shows no trails). The clean open-water frame (the
+    Black Sea racetrack) is intentional and matches the published shot — the oval
+    is the subject. HUD hidden so neither ship is occluded.
+    """
+    close_filter_panel(page)
+    page.evaluate("() => { const t = document.getElementById('navToggle'); if (t && t.checked) t.click(); }")
+    page.evaluate("() => { const t = document.getElementById('telemetry'); if (t) t.style.display = 'none'; }")
+    # Blue planes only + the vector stub + fading trail; nothing else.
+    set_filters(page, {"coalition": [3], "category": [1], "layers": ["vectors", "trails"]})
+    # Longest practical trail (2 min) so a full lap of the ~100 s oval is drawn.
+    page.evaluate(
+        "() => { const s = document.getElementById('trailLengthSel'); "
+        "if (s) { s.value = '120'; s.dispatchEvent(new Event('change', {bubbles: true})); } }"
+    )
+    # Trails start empty on a fresh page; accumulate ~a full lap before framing.
+    print("  [trails] accumulating trail (~125 s)…")
+    page.wait_for_timeout(125000)
+    info = page.evaluate(
+        """() => {
+          const map = window.__leafletMap;
+          const layers = Object.values(map._layers || {});
+          // Trail + vector-stub polylines (mock has no routes); union their bounds.
+          const polys = layers.filter(l => Array.isArray(l._latlngs) && l._latlngs.length >= 2
+            && typeof l.getBounds === 'function');
+          if (!polys.length) return {ok: false};
+          let b = polys[0].getBounds();
+          for (const p of polys.slice(1)) b = b.extend(p.getBounds());
+          map.fitBounds(b, {animate: false, padding: [130, 130]});
+          return {ok: true, polylines: polys.length};
+        }"""
+    )
+    print(f"  [trails] {info}")
+    page.wait_for_timeout(1200)  # tiles settle at the framed view
 
 
 SHOTS: dict[str, dict] = {
@@ -474,6 +641,8 @@ SHOTS: dict[str, dict] = {
     "threats": {"setup": shot_threats, "viewport": (1600, 900), "clip": None},
     "nav":     {"setup": shot_nav,     "viewport": (1600, 900), "clip": None},
     "fog":     {"setup": shot_fog,     "viewport": (1040, 780), "clip": None},
+    "airfields": {"setup": shot_airfields, "viewport": (1600, 900), "clip": None},
+    "trails":  {"setup": shot_trails,  "viewport": (1600, 900), "clip": None},
 }
 
 
